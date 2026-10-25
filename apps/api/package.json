@@ -7,6 +7,8 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "db:push": "prisma db push",
+    "worker:dev": "tsx watch src/engine/worker-main.ts",
+    "worker": "node dist/engine/worker-main.js",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit -p tsconfig.json",
