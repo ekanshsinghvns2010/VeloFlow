@@ -1,0 +1,63 @@
+
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build outputs
+dist/
+build/
+coverage/
+.next/
+.expo/
+web-build/
+
+# Environment secrets
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Operating systems and editors
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+
+# Android and Gradle
+.gradle/
+**/.gradle/
+android/.gradle/
+android/local.properties
+*.keystore
+*.jks
+*.apk
+*.aab
+
+# Testing and temporary files
+.tmp/
+.temp/
+.cache/
+*.tsbuildinfo
+
+# Databases and local data
+*.sqlite
+*.sqlite3
+*.db
+data/
+backups/
+
+# Generated Prisma files
+apps/api/src/generated/
+
+# Secrets and certificates
+*.pem
+*.key
+*.p12
+*.pfx
