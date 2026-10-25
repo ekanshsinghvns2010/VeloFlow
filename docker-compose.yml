@@ -1,0 +1,36 @@
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: veloflow
+      POSTGRES_USER: veloflow
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_this_password}
+    ports:
+      - "5432:5432"
+    volumes:
+      - veloflow_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U veloflow -d veloflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - veloflow_redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  veloflow_postgres:
+  veloflow_redis:
