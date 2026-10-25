@@ -8,6 +8,9 @@ import jwt from "@fastify/jwt";
 import { randomUUID } from "node:crypto";
 import { env, corsOrigins } from "./lib/env.js";
 import { prisma } from "./lib/prisma.js";
+import { registerAuthentication } from "./plugins/authenticate.js";
+import authRoutes from "./routes/auth.js";
+import workspacesRoutes from "./routes/workspaces.js";
 
 const app = Fastify({
   logger: {
@@ -58,11 +61,10 @@ async function start(): Promise<void> {
   await app.register(sensible);
 
   await app.register(jwt, {
-    secret: env.JWT_SECRET,
-    sign: {
-      expiresIn: "15m"
-    }
+    secret: env.JWT_SECRET
   });
+
+  await registerAuthentication(app);
 
   app.addHook("onSend", async (request, reply, payload) => {
     reply.header("x-request-id", request.id);
@@ -92,16 +94,14 @@ async function start(): Promise<void> {
 
     const healthy = database === "connected";
 
-    return reply
-      .code(healthy ? 200 : 503)
-      .send({
-        status: healthy ? "ok" : "degraded",
-        service: "veloflow-api",
-        timestamp: new Date().toISOString(),
-        checks: {
-          database
-        }
-      });
+    return reply.code(healthy ? 200 : 503).send({
+      status: healthy ? "ok" : "degraded",
+      service: "veloflow-api",
+      timestamp: new Date().toISOString(),
+      checks: {
+        database
+      }
+    });
   });
 
   app.get("/api/v1/health", async () => ({
@@ -110,9 +110,16 @@ async function start(): Promise<void> {
       service: "veloflow-api",
       version: "1.0.0",
       timestamp: new Date().toISOString()
-    },
-    requestId: randomUUID()
+    }
   }));
+
+  await app.register(authRoutes, {
+    prefix: "/api/v1/auth"
+  });
+
+  await app.register(workspacesRoutes, {
+    prefix: "/api/v1/workspaces"
+  });
 
   app.setNotFoundHandler(async (request, reply) => {
     return reply.code(404).send({
