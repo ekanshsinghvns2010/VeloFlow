@@ -11,6 +11,7 @@ import { prisma } from "./lib/prisma.js";
 import { registerAuthentication } from "./plugins/authenticate.js";
 import authRoutes from "./routes/auth.js";
 import workspacesRoutes from "./routes/workspaces.js";
+import workflowsRoutes from "./routes/workflows.js";
 
 const app = Fastify({
   logger: {
@@ -119,6 +120,10 @@ async function start(): Promise<void> {
 
   await app.register(workspacesRoutes, {
     prefix: "/api/v1/workspaces"
+  });
+
+  await app.register(workflowsRoutes, {
+    prefix: "/api/v1"
   });
 
   app.setNotFoundHandler(async (request, reply) => {
