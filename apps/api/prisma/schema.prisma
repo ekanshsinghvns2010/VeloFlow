@@ -1,0 +1,203 @@
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum WorkspaceRole {
+  OWNER
+  ADMIN
+  EDITOR
+  VIEWER
+}
+
+enum WorkflowStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum ExecutionStatus {
+  QUEUED
+  RUNNING
+  WAITING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+}
+
+enum CredentialStatus {
+  ACTIVE
+  REVOKED
+}
+
+model User {
+  id                 String             @id @default(cuid())
+  email              String             @unique
+  name               String
+  passwordHash       String
+  emailVerifiedAt    DateTime?
+  disabledAt         DateTime?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  memberships        WorkspaceMember[]
+  createdWorkspaces  Workspace[]        @relation("WorkspaceCreator")
+  createdCredentials Credential[]       @relation("CredentialCreator")
+  apiKeys            ApiKey[]
+  auditLogs          AuditLog[]         @relation("AuditActor")
+  executions         Execution[]        @relation("ExecutionStarter")
+  refreshSessions    RefreshSession[]
+
+  @@index([createdAt])
+}
+
+model Workspace {
+  id          String            @id @default(cuid())
+  name        String
+  slug        String            @unique
+  createdById String
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  createdBy   User              @relation("WorkspaceCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  members     WorkspaceMember[]
+  workflows   Workflow[]
+  credentials Credential[]
+  executions  Execution[]
+  apiKeys     ApiKey[]
+  auditLogs   AuditLog[]
+
+  @@index([createdById])
+  @@index([createdAt])
+}
+
+model WorkspaceMember {
+  id          String        @id @default(cuid())
+  workspaceId String
+  userId      String
+  role        WorkspaceRole @default(EDITOR)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+  @@index([userId])
+}
+
+model Workflow {
+  id            String         @id @default(cuid())
+  workspaceId   String
+  name          String
+  description   String         @default("")
+  status        WorkflowStatus @default(DRAFT)
+  definition    Json
+  version       Int            @default(1)
+  activeVersion Int?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  workspace     Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  executions    Execution[]
+
+  @@index([workspaceId, updatedAt])
+  @@index([workspaceId, status])
+}
+
+model Credential {
+  id          String           @id @default(cuid())
+  workspaceId String
+  createdById String
+  name        String
+  type        String
+  encryptedData String
+  status      CredentialStatus @default(ACTIVE)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  workspace   Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdBy   User              @relation("CredentialCreator", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([workspaceId, status])
+}
+
+model Execution {
+  id          String          @id @default(cuid())
+  workspaceId String
+  workflowId  String
+  startedById String?
+  status      ExecutionStatus @default(QUEUED)
+  mode        String          @default("manual")
+  input       Json?
+  output      Json?
+  error       Json?
+  nodeResults Json?
+  startedAt   DateTime?
+  finishedAt  DateTime?
+  durationMs  Int?
+  createdAt   DateTime        @default(now())
+
+  workspace   Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workflow    Workflow        @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  startedBy   User?           @relation("ExecutionStarter", fields: [startedById], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, createdAt])
+  @@index([workflowId, createdAt])
+  @@index([status, createdAt])
+}
+
+model ApiKey {
+  id            String    @id @default(cuid())
+  workspaceId   String
+  userId        String
+  name          String
+  keyPrefix     String
+  keyHash       String    @unique
+  lastUsedAt    DateTime?
+  expiresAt     DateTime?
+  revokedAt     DateTime?
+  createdAt     DateTime  @default(now())
+
+  workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([userId])
+}
+
+model RefreshSession {
+  id                String   @id @default(cuid())
+  userId            String
+  tokenHash         String   @unique
+  expiresAt         DateTime
+  revokedAt         DateTime?
+  createdAt         DateTime @default(now())
+
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  workspaceId String
+  actorId     String?
+  action      String
+  resource    String
+  resourceId  String?
+  metadata    Json?
+  ipAddress   String?
+  createdAt   DateTime @default(now())
+
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  actor       User?      @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, createdAt])
+  @@index([actorId, createdAt])
+}
