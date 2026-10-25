@@ -1,7 +1,6 @@
 import { randomUUID } from "node:crypto";
-import type { WorkflowDefinition } from "@veloflow/shared";
 import { prisma } from "../lib/prisma.js";
-import { runWorkflow } from "./runner.js";
+import { enqueueExecution } from "./queue.js";
 
 export interface StartExecutionInput {
   workflowId: string;
@@ -19,6 +18,10 @@ export async function startExecution(
       workspaceId: input.workspaceId,
       status: "ACTIVE",
     },
+    select: {
+      id: true,
+      workspaceId: true,
+    },
   });
 
   if (!workflow) {
@@ -27,50 +30,43 @@ export async function startExecution(
     );
   }
 
-  const definition = workflow.definition as unknown as WorkflowDefinition;
   const executionId = randomUUID();
 
-  const execution = await prisma.execution.create({
+  await prisma.execution.create({
     data: {
       id: executionId,
       workflowId: workflow.id,
       workspaceId: workflow.workspaceId,
       triggeredById: input.userId,
-      status: "RUNNING",
-      input: JSON.parse(
-        JSON.stringify(input.input ?? {}),
-      ),
-      startedAt: new Date(),
+      status: "QUEUED",
+      input: JSON.parse(JSON.stringify(input.input ?? {})),
       nodeResults: [],
     },
   });
 
   try {
-    const result = await runWorkflow(definition, {
+    await enqueueExecution({
       executionId,
       workflowId: workflow.id,
       workspaceId: workflow.workspaceId,
       userId: input.userId,
       input: input.input ?? {},
     });
-
-    return {
-      execution,
-      result,
-    };
   } catch (error) {
     await prisma.execution.update({
       where: { id: executionId },
       data: {
         status: "FAILED",
         finishedAt: new Date(),
-        error:
-          error instanceof Error
-            ? error.message
-            : String(error),
+        error: "Could not queue workflow execution.",
       },
     });
 
     throw error;
   }
+
+  return {
+    executionId,
+    status: "QUEUED" as const,
+  };
 }
