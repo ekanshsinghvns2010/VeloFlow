@@ -4,17 +4,22 @@ import cors from "@fastify/cors";
 import rateLimit from "@fastify/rate-limit";
 import sensible from "@fastify/sensible";
 import jwt from "@fastify/jwt";
+
 import { env } from "./lib/env.js";
 import { prisma } from "./lib/prisma.js";
 import { redisConnection } from "./lib/redis.js";
+
 import { registerAuthentication } from "./plugins/authenticate.js";
 import apiKeyAuthPlugin from "./plugins/api-key-auth.js";
+
 import authRoutes from "./routes/auth.js";
 import workspaceRoutes from "./routes/workspaces.js";
 import workflowRoutes from "./routes/workflows.js";
 import executionRoutes from "./routes/executions.js";
 import credentialRoutes from "./routes/credentials.js";
 import apiKeyRoutes from "./routes/api-keys.js";
+import webhookRoutes from "./routes/webhooks.js";
+
 import { registerCoreNodes } from "./engine/nodes/index.js";
 
 async function buildServer() {
@@ -51,6 +56,7 @@ async function buildServer() {
 
   registerAuthentication(app);
   await app.register(apiKeyAuthPlugin);
+
   registerCoreNodes();
 
   app.get("/health", async (_request, reply) => {
@@ -73,17 +79,46 @@ async function buildServer() {
     }
   });
 
-  await app.register(authRoutes, { prefix: "/api/auth" });
-  await app.register(workspaceRoutes, { prefix: "/api/workspaces" });
-  await app.register(workflowRoutes, { prefix: "/api" });
-  await app.register(executionRoutes, { prefix: "/api/workspaces" });
-  await app.register(credentialRoutes, { prefix: "/api/workspaces" });
-  await app.register(apiKeyRoutes, { prefix: "/api/workspaces" });
+  // Authentication and workspace APIs
+  await app.register(authRoutes, {
+    prefix: "/api/auth",
+  });
+
+  await app.register(workspaceRoutes, {
+    prefix: "/api/workspaces",
+  });
+
+  // Workflow CRUD APIs
+  await app.register(workflowRoutes, {
+    prefix: "/api",
+  });
+
+  // Execution APIs
+  await app.register(executionRoutes, {
+    prefix: "/api/workspaces",
+  });
+
+  // Credential management APIs
+  await app.register(credentialRoutes, {
+    prefix: "/api/workspaces",
+  });
+
+  // API key management APIs
+  await app.register(apiKeyRoutes, {
+    prefix: "/api/workspaces",
+  });
+
+  // Public webhook trigger endpoints
+  await app.register(webhookRoutes, {
+    prefix: "/webhooks",
+  });
 
   app.setErrorHandler((error, request, reply) => {
     request.log.error({ err: error }, "Request failed");
 
-    if (reply.sent) return;
+    if (reply.sent) {
+      return;
+    }
 
     const statusCode =
       error.statusCode && error.statusCode >= 400
@@ -126,7 +161,10 @@ async function main() {
   process.once("SIGTERM", () => void shutdown("SIGTERM"));
 
   try {
-    await app.listen({ port: env.PORT, host: env.HOST });
+    await app.listen({
+      port: env.PORT,
+      host: env.HOST,
+    });
   } catch (error) {
     app.log.error({ err: error }, "API startup failed");
     await app.close();
