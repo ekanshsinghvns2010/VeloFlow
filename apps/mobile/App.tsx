@@ -111,11 +111,20 @@ export default function App() {
       return;
     }
 
+
     const chosen =
       items.find((item) => item.id === workspaceId) ??
       items[0];
 
+    if (!chosen) {
+      setWorkspaceId("");
+      setWorkflows([]);
+      setNotice("No usable workspace was returned by the server.");
+      return;
+    }
+
     setWorkspaceId(chosen.id);
+
 
     const response = await api(
       `/api/${encodeURIComponent(chosen.id)}/workflows?limit=100`,
