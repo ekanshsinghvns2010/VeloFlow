@@ -1,39 +1,48 @@
+
 import { getPath, interpolateString } from "./data.js";
 
 export interface ExpressionScope {
-input?: unknown;
-variables?: Record<string, unknown>;
-node?: Record<string, unknown>;
-execution?: Record<string, unknown>;
+  input?: unknown;
+  variables?: Record<string, unknown>;
+  node?: Record<string, unknown>;
+  execution?: Record<string, unknown>;
 }
 
 export function resolveExpression(
-value: unknown,
-scope: ExpressionScope,
+  value: unknown,
+  scope: ExpressionScope,
 ): unknown {
-if (typeof value === "string") {
-const exactMatch = value.match(/^{{\s*([^{}]+?)\s*}}$/);
+  if (typeof value === "string") {
+    const exactMatch = value.match(/^{{\s*([^{}]+?)\s*}}$/);
 
-if (exactMatch) {
-  return getPath(scope, exactMatch[1].trim());
-}
+    if (exactMatch) {
+      const expression = exactMatch[1];
 
-return interpolateString(value, scope as Record<string, unknown>);
+      if (expression === undefined) {
+        return value;
+      }
 
-}
+      return getPath(scope, expression.trim());
+    }
 
-if (Array.isArray(value)) {
-return value.map((item) => resolveExpression(item, scope));
-}
+    return interpolateString(
+      value,
+      scope as Record<string, unknown>,
+    );
+  }
 
-if (value !== null && typeof value === "object") {
-return Object.fromEntries(
-Object.entries(value).map(([key, item]) => [
-key,
-resolveExpression(item, scope),
-]),
-);
-}
+  if (Array.isArray(value)) {
+    return value.map((item) => resolveExpression(item, scope));
+  }
 
-return value;
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [
+        key,
+        resolveExpression(item, scope),
+      ]),
+    );
+  }
+
+  return value;
 }
