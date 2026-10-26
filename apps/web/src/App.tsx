@@ -1,5 +1,6 @@
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import type { FormEvent } from "react";
 import {
   Activity,
   ArrowRight,
@@ -22,9 +23,6 @@ import {
 import WorkflowEditor from "./WorkflowEditor";
 import {
   ApiError,
-  ApiUser,
-  ApiWorkspace,
-  ApiWorkflow,
   clearSession,
   createWorkflow,
   getAccessToken,
@@ -35,6 +33,11 @@ import {
   login,
   logout,
   register,
+} from "./lib/api";
+import type {
+  ApiUser,
+  ApiWorkspace,
+  ApiWorkflow,
 } from "./lib/api";
 
 type WorkflowItem = {
@@ -113,8 +116,16 @@ function App() {
       }
 
       const selected =
-        availableWorkspaces.find((workspace) => workspace.id === workspaceId) ??
-        availableWorkspaces[0];
+        availableWorkspaces.find(
+          (workspace) => workspace.id === workspaceId,
+        ) ?? availableWorkspaces[0];
+
+      if (!selected) {
+        setWorkspaceId("");
+        setWorkflows([]);
+        setError("No workspace is available for this account.");
+        return;
+      }
 
       setWorkspaceId(selected.id);
 
@@ -144,7 +155,9 @@ function App() {
     void loadDashboard();
   }, [loadDashboard]);
 
-  async function handleAuthSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleAuthSubmit(
+    event: FormEvent<HTMLFormElement>,
+  ) {
     event.preventDefault();
     setAuthBusy(true);
     setError("");
@@ -276,7 +289,9 @@ function App() {
           </div>
 
           <h1 style={{ fontSize: 28, marginBottom: 8 }}>
-            {authMode === "login" ? "Welcome back" : "Create your account"}
+            {authMode === "login"
+              ? "Welcome back"
+              : "Create your account"}
           </h1>
 
           <p style={{ color: "#777", marginBottom: 24 }}>
@@ -329,7 +344,9 @@ function App() {
                 minLength={authMode === "register" ? 12 : 1}
                 maxLength={128}
                 autoComplete={
-                  authMode === "register" ? "new-password" : "current-password"
+                  authMode === "register"
+                    ? "new-password"
+                    : "current-password"
                 }
                 value={authPassword}
                 onChange={(event) => setAuthPassword(event.target.value)}
@@ -369,12 +386,16 @@ function App() {
             <button
               type="button"
               onClick={() => {
-                setAuthMode(authMode === "login" ? "register" : "login");
+                setAuthMode(
+                  authMode === "login" ? "register" : "login",
+                );
                 setError("");
               }}
               style={textButtonStyle}
             >
-              {authMode === "login" ? "Create an account" : "Log in"}
+              {authMode === "login"
+                ? "Create an account"
+                : "Log in"}
             </button>
           </p>
         </div>
@@ -425,7 +446,10 @@ function App() {
               );
               const next =
                 workspaces[(currentIndex + 1) % workspaces.length];
-              setWorkspaceId(next.id);
+
+              if (next) {
+                setWorkspaceId(next.id);
+              }
             } else {
               setNotice(
                 workspaces[0]
@@ -443,6 +467,7 @@ function App() {
               .slice(0, 1)
               .toUpperCase()}
           </span>
+
           <span className="workspace-copy">
             <strong>
               {workspaces.find((workspace) => workspace.id === workspaceId)
@@ -524,7 +549,9 @@ function App() {
         <div className="sidebar-bottom">
           <button
             className="nav-item"
-            onClick={() => setNotice("Workspace settings will be added next.")}
+            onClick={() =>
+              setNotice("Workspace settings will be added next.")
+            }
           >
             <Settings size={18} />
             <span>Settings</span>
@@ -532,7 +559,9 @@ function App() {
 
           <button
             className="nav-item"
-            onClick={() => setNotice("Help documentation is coming soon.")}
+            onClick={() =>
+              setNotice("Help documentation is coming soon.")
+            }
           >
             <CircleHelp size={18} />
             <span>Help &amp; support</span>
@@ -603,7 +632,10 @@ function App() {
           {error && (
             <div className="notice" role="alert">
               <span>{error}</span>
-              <button onClick={() => setError("")} aria-label="Dismiss error">
+              <button
+                onClick={() => setError("")}
+                aria-label="Dismiss error"
+              >
                 ×
               </button>
             </div>
@@ -612,7 +644,10 @@ function App() {
           {notice && (
             <div className="notice" role="status">
               <span>{notice}</span>
-              <button onClick={() => setNotice("")} aria-label="Dismiss notice">
+              <button
+                onClick={() => setNotice("")}
+                aria-label="Dismiss notice"
+              >
                 ×
               </button>
             </div>
@@ -697,12 +732,15 @@ function App() {
                   <div className="tab-list">
                     <button
                       className={
-                        activeTab === "Overview" ? "tab active-tab" : "tab"
+                        activeTab === "Overview"
+                          ? "tab active-tab"
+                          : "tab"
                       }
                       onClick={() => setActiveTab("Overview")}
                     >
                       All workflows <span>{workflows.length}</span>
                     </button>
+
                     <button
                       className={
                         activeTab === "Active workflows"
@@ -728,7 +766,10 @@ function App() {
 
                 <div className="workflow-list">
                   {filteredWorkflows.map((workflow) => (
-                    <article className="workflow-row" key={workflow.id}>
+                    <article
+                      className="workflow-row"
+                      key={workflow.id}
+                    >
                       <div className="workflow-symbol">
                         <WorkflowIcon size={21} />
                       </div>
@@ -804,8 +845,8 @@ function App() {
                   <h3>Your ideas, connected.</h3>
                   <p>
                     Your account, workspace, and workflow records now use the
-                    backend. Next we'll connect the visual editor so every node
-                    and connection is saved to your database.
+                    backend. Next we'll connect the visual editor so every
+                    node and connection is saved to your database.
                   </p>
                 </div>
               </section>
