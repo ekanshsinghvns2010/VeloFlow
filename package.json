@@ -1,31 +1,31 @@
-
 {
-  "name": "veloflow",
-  "version": "1.0.0",
-  "private": true,
-  "description": "Open-source visual workflow automation platform",
-  "workspaces": [
-    "apps/web",
-    "apps/api",
-    "apps/mobile",
-    "packages/shared"
-  ],
-  "engines": {
-    "node": ">=22.0.0",
-    "npm": ">=10.0.0"
-  },
-  "scripts": {
-    "dev": "npm run dev:web",
-    "dev:web": "npm run dev --workspace=@veloflow/web",
-    "dev:api": "npm run dev --workspace=@veloflow/api",
-    "dev:mobile": "npm run start --workspace=@veloflow/mobile",
-    "build": "npm run build --workspaces --if-present",
-    "typecheck": "npm run typecheck --workspaces --if-present",
-    "test": "npm run test --workspaces --if-present",
-    "lint": "npm run lint --workspaces --if-present",
-    "check": "npm run typecheck && npm test && npm run build",
-    "db:generate": "npm run db:generate --workspace=@veloflow/api",
-    "db:migrate": "npm run db:migrate --workspace=@veloflow/api",
-    "db:studio": "npm run db:studio --workspace=@veloflow/api"
-  }
+"name": "veloflow",
+"version": "1.0.0",
+"private": true,
+"description": "Open-source visual workflow automation platform",
+"workspaces": [
+"apps/web",
+"apps/api",
+"apps/mobile",
+"packages/shared"
+],
+"engines": {
+"node": ">=22.0.0",
+"npm": ">=10.0.0"
+},
+"scripts": {
+"dev": "npm run dev:web",
+"dev:web": "npm run dev --workspace=@veloflow/web",
+"dev:api": "npm run dev --workspace=@veloflow/api",
+"dev:mobile": "npm run start --workspace=@veloflow/mobile",
+"build:shared": "npm run build --workspace=@veloflow/shared",
+"build": "npm run build:shared && npm run build --workspace=@veloflow/api && npm run build --workspace=@veloflow/web && npm run build --workspace=@veloflow/mobile",
+"typecheck": "npm run build:shared && npm run typecheck --workspace=@veloflow/shared && npm run typecheck --workspace=@veloflow/api && npm run typecheck --workspace=@veloflow/web && npm run typecheck --workspace=@veloflow/mobile",
+"test": "npm run test --workspaces --if-present",
+"lint": "npm run lint --workspaces --if-present",
+"check": "npm run typecheck && npm test && npm run build",
+"db:generate": "npm run db:generate --workspace=@veloflow/api",
+"db:migrate": "npm run db:migrate --workspace=@veloflow/api",
+"db:studio": "npm run db:studio --workspace=@veloflow/api"
+}
 }
