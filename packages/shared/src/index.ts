@@ -252,3 +252,4 @@ export function validateWorkflow(
 
   return workflow;
 }
+export * from "./workflow-editor.js";
