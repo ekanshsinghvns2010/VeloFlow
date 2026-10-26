@@ -1,8 +1,7 @@
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
-  Check,
   Clock,
   Code,
   Database,
@@ -29,10 +28,12 @@ import {
   createWorkflowNode,
   removeWorkflowNode,
 } from "@veloflow/shared";
+import { getWorkflow, updateWorkflow } from "./lib/api";
 import "./WorkflowEditor.css";
 
 type Props = {
   workflowId: string;
+  workspaceId: string;
   initialName: string;
   onBack: () => void;
   onSave: (name: string, nodeCount: number) => void;
@@ -170,14 +171,19 @@ function readSavedDefinition(
 
   try {
     const saved = localStorage.getItem(key);
+
     if (saved) {
       const parsed = JSON.parse(saved) as WorkflowDefinition;
-      if (Array.isArray(parsed.nodes) && Array.isArray(parsed.connections)) {
+
+      if (
+        Array.isArray(parsed.nodes) &&
+        Array.isArray(parsed.connections)
+      ) {
         return { ...parsed, name };
       }
     }
   } catch {
-    // Ignore damaged local drafts and create a clean definition.
+    // Ignore damaged local drafts.
   }
 
   return createEmptyWorkflow(name);
@@ -185,6 +191,7 @@ function readSavedDefinition(
 
 export default function WorkflowEditor({
   workflowId,
+  workspaceId,
   initialName,
   onBack,
   onSave,
@@ -202,6 +209,67 @@ export default function WorkflowEditor({
     "Add a trigger, then connect nodes to build your workflow.",
   );
   const [connectFrom, setConnectFrom] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadWorkflow() {
+      setLoading(true);
+
+      try {
+        const saved = await getWorkflow(workspaceId, workflowId);
+
+        if (!active) return;
+
+        const serverDefinition = saved.definition as
+          | WorkflowDefinition
+          | undefined;
+
+        if (
+          serverDefinition &&
+          Array.isArray(serverDefinition.nodes) &&
+          Array.isArray(serverDefinition.connections)
+        ) {
+          setName(saved.name || initialName);
+          setDefinition({
+            ...serverDefinition,
+            name: saved.name || initialName,
+          });
+          setSelectedId(serverDefinition.nodes[0]?.id ?? null);
+          setNotice("Workflow loaded from the server.");
+        } else {
+          const local = readSavedDefinition(
+            workflowId,
+            saved.name || initialName,
+          );
+
+          setName(saved.name || initialName);
+          setDefinition(local);
+          setSelectedId(local.nodes[0]?.id ?? null);
+          setNotice("Ready to edit your workflow.");
+        }
+      } catch {
+        if (!active) return;
+
+        const local = readSavedDefinition(workflowId, initialName);
+
+        setName(initialName);
+        setDefinition(local);
+        setSelectedId(local.nodes[0]?.id ?? null);
+        setNotice("Could not load the server version. You can still edit and retry saving.");
+      } finally {
+        if (active) setLoading(false);
+      }
+    }
+
+    void loadWorkflow();
+
+    return () => {
+      active = false;
+    };
+  }, [workspaceId, workflowId, initialName]);
 
   const selectedNode = definition.nodes.find(
     (node) => node.id === selectedId,
@@ -209,6 +277,7 @@ export default function WorkflowEditor({
 
   const visibleCatalog = useMemo(() => {
     const query = search.trim().toLowerCase();
+
     return catalog.filter(
       (item) =>
         item.label.toLowerCase().includes(query) ||
@@ -223,6 +292,7 @@ export default function WorkflowEditor({
 
   function addNode(type: WorkflowNodeKind) {
     const node = createWorkflowNode(type, definition.nodes.length);
+
     const nextNode: WorkflowNode = {
       ...node,
       position: {
@@ -236,6 +306,7 @@ export default function WorkflowEditor({
       name,
       nodes: [...definition.nodes, nextNode],
     });
+
     setSelectedId(nextNode.id);
     setNotice(`${nextNode.name} added.`);
   }
@@ -261,41 +332,61 @@ export default function WorkflowEditor({
         connectFrom,
         targetId,
       );
+
       updateDefinition(next);
       setNotice("Connection created.");
     } catch (error) {
       setNotice(
-        error instanceof Error ? error.message : "Could not connect nodes.",
+        error instanceof Error
+          ? error.message
+          : "Could not connect nodes.",
       );
     }
 
     setConnectFrom(null);
   }
 
-  function saveWorkflow() {
+  async function saveWorkflow() {
+    if (saving) return;
+
+    setSaving(true);
+
     try {
       const next = { ...definition, name };
+
+      await updateWorkflow(workspaceId, workflowId, {
+        name,
+        definition: next,
+      });
+
       localStorage.setItem(
         `veloflow-workflow-${workflowId}`,
         JSON.stringify(next),
       );
+
       updateDefinition(next);
       onSave(name, next.nodes.length);
-      setNotice("Saved to this browser.");
-    } catch {
-      setNotice("Unable to save. Check your browser storage settings.");
+      setNotice("Workflow saved to the server.");
+    } catch (error) {
+      setNotice(
+        error instanceof Error
+          ? `Save failed: ${error.message}`
+          : "Save failed. Please try again.",
+      );
+    } finally {
+      setSaving(false);
     }
   }
 
-  function updateSelected(
-    changes: Partial<WorkflowNode>,
-  ) {
+  function updateSelected(changes: Partial<WorkflowNode>) {
     if (!selectedId) return;
 
     updateDefinition({
       ...definition,
       nodes: definition.nodes.map((node) =>
-        node.id === selectedId ? { ...node, ...changes } : node,
+        node.id === selectedId
+          ? { ...node, ...changes }
+          : node,
       ),
     });
   }
@@ -355,13 +446,18 @@ export default function WorkflowEditor({
   const nodeIcon = (type: WorkflowNodeKind) => {
     const entry = catalog.find((item) => item.type === type);
     const Icon = entry?.icon ?? Zap;
+
     return <Icon size={18} />;
   };
 
   return (
     <div className="vf-editor">
       <header className="vf-editor-header">
-        <button className="vf-icon-button" onClick={onBack} title="Back">
+        <button
+          className="vf-icon-button"
+          onClick={onBack}
+          title="Back"
+        >
           <ArrowLeft size={19} />
         </button>
 
@@ -372,13 +468,22 @@ export default function WorkflowEditor({
             onChange={(event) => setName(event.target.value)}
             maxLength={200}
           />
-          <span><span className="vf-draft-dot" /> Draft · {definition.nodes.length} nodes</span>
+          <span>
+            <span className="vf-draft-dot" />
+            {loading ? "Loading..." : "Draft"} · {definition.nodes.length} nodes
+          </span>
         </div>
 
         <div className="vf-editor-actions">
-          <button className="vf-secondary-button" onClick={saveWorkflow}>
-            <Save size={16} /> Save
+          <button
+            className="vf-secondary-button"
+            onClick={saveWorkflow}
+            disabled={loading || saving}
+          >
+            <Save size={16} />
+            {saving ? "Saving..." : "Save"}
           </button>
+
           <button
             className="vf-primary-button"
             onClick={() =>
@@ -400,6 +505,7 @@ export default function WorkflowEditor({
                 <strong>Node library</strong>
                 <p>Choose a step to add</p>
               </div>
+
               <button
                 className="vf-small-icon"
                 onClick={() => setShowLibrary(false)}
@@ -419,23 +525,29 @@ export default function WorkflowEditor({
             <div className="vf-catalog">
               {visibleCatalog.map((item) => {
                 const Icon = item.icon;
+
                 return (
                   <button
                     className="vf-catalog-item"
                     key={item.type}
                     onClick={() => addNode(item.type)}
                   >
-                    <span className={`vf-node-icon vf-${item.category.toLowerCase()}`}>
+                    <span
+                      className={`vf-node-icon vf-${item.category.toLowerCase()}`}
+                    >
                       <Icon size={17} />
                     </span>
+
                     <span className="vf-catalog-copy">
                       <strong>{item.label}</strong>
                       <small>{item.description}</small>
                     </span>
+
                     <Plus size={15} />
                   </button>
                 );
               })}
+
               {visibleCatalog.length === 0 && (
                 <p className="vf-empty">No matching nodes.</p>
               )}
@@ -446,13 +558,21 @@ export default function WorkflowEditor({
         <main className="vf-canvas-area">
           <div className="vf-canvas-toolbar">
             {!showLibrary && (
-              <button className="vf-secondary-button" onClick={() => setShowLibrary(true)}>
+              <button
+                className="vf-secondary-button"
+                onClick={() => setShowLibrary(true)}
+              >
                 <Plus size={15} /> Node library
               </button>
             )}
+
             <span>Canvas</span>
             <span className="vf-toolbar-spacer" />
-            <button className="vf-secondary-button" onClick={() => setConnectFrom(null)}>
+
+            <button
+              className="vf-secondary-button"
+              onClick={() => setConnectFrom(null)}
+            >
               Cancel connection
             </button>
           </div>
@@ -464,9 +584,11 @@ export default function WorkflowEditor({
                   const source = definition.nodes.find(
                     (node) => node.id === edge.sourceNodeId,
                   );
+
                   const target = definition.nodes.find(
                     (node) => node.id === edge.targetNodeId,
                   );
+
                   if (!source || !target) return null;
 
                   const x1 = source.position.x + NODE_WIDTH;
@@ -488,7 +610,9 @@ export default function WorkflowEditor({
               {definition.nodes.map((node) => (
                 <article
                   key={node.id}
-                  className={`vf-node ${selectedId === node.id ? "vf-node-selected" : ""} ${node.disabled ? "vf-node-disabled" : ""}`}
+                  className={`vf-node ${
+                    selectedId === node.id ? "vf-node-selected" : ""
+                  } ${node.disabled ? "vf-node-disabled" : ""}`}
                   style={{
                     left: node.position.x,
                     top: node.position.y,
@@ -499,21 +623,35 @@ export default function WorkflowEditor({
                     className="vf-node-main"
                     onClick={() => setSelectedId(node.id)}
                     onPointerDown={(event) => {
-                      if (event.button === 0 && event.target === event.currentTarget) {
+                      if (
+                        event.button === 0 &&
+                        event.target === event.currentTarget
+                      ) {
                         moveNode(event, node);
                       }
                     }}
                   >
-                    <span className="vf-node-symbol">{nodeIcon(node.type)}</span>
+                    <span className="vf-node-symbol">
+                      {nodeIcon(node.type)}
+                    </span>
+
                     <span className="vf-node-labels">
                       <strong>{node.name}</strong>
-                      <small>{catalog.find((item) => item.type === node.type)?.label ?? node.type}</small>
+                      <small>
+                        {catalog.find((item) => item.type === node.type)
+                          ?.label ?? node.type}
+                      </small>
                     </span>
-                    {node.disabled && <span className="vf-disabled-label">Off</span>}
+
+                    {node.disabled && (
+                      <span className="vf-disabled-label">Off</span>
+                    )}
                   </button>
 
                   <button
-                    className={`vf-node-port vf-input-port ${connectFrom === node.id ? "vf-port-armed" : ""}`}
+                    className={`vf-node-port vf-input-port ${
+                      connectFrom === node.id ? "vf-port-armed" : ""
+                    }`}
                     aria-label={`Connect from or to ${node.name}`}
                     title="Select this node to connect"
                     onClick={() => connectTo(node.id)}
@@ -525,7 +663,9 @@ export default function WorkflowEditor({
                     title="Click to start a connection"
                     onClick={() => {
                       setConnectFrom(node.id);
-                      setNotice(`Choose the destination node for ${node.name}.`);
+                      setNotice(
+                        `Choose the destination node for ${node.name}.`,
+                      );
                     }}
                   />
                 </article>
@@ -533,11 +673,21 @@ export default function WorkflowEditor({
 
               {definition.nodes.length === 0 && (
                 <div className="vf-canvas-empty">
-                  <div className="vf-empty-icon"><Zap size={25} /></div>
+                  <div className="vf-empty-icon">
+                    <Zap size={25} />
+                  </div>
+
                   <h2>Start building your workflow</h2>
-                  <p>Add a trigger from the node library, then add and connect actions.</p>
+                  <p>
+                    Add a trigger from the node library, then add and connect
+                    actions.
+                  </p>
+
                   {!showLibrary && (
-                    <button className="vf-primary-button" onClick={() => setShowLibrary(true)}>
+                    <button
+                      className="vf-primary-button"
+                      onClick={() => setShowLibrary(true)}
+                    >
                       <Plus size={16} /> Browse nodes
                     </button>
                   )}
@@ -547,11 +697,19 @@ export default function WorkflowEditor({
           </div>
 
           <div className="vf-status-bar">
-            <span><span className="vf-status-dot" /> Editor ready</span>
+            <span>
+              <span className="vf-status-dot" />
+              {loading ? "Loading workflow..." : "Editor ready"}
+            </span>
             <span>{definition.nodes.length} nodes</span>
             <span>{definition.connections.length} connections</span>
           </div>
-          {notice && <div className="vf-notice" role="status">{notice}</div>}
+
+          {notice && (
+            <div className="vf-notice" role="status">
+              {notice}
+            </div>
+          )}
         </main>
 
         <aside className="vf-inspector">
@@ -567,12 +725,17 @@ export default function WorkflowEditor({
             <div className="vf-inspector-empty">
               <Settings2 size={25} />
               <strong>No node selected</strong>
-              <p>Select a node on the canvas to edit its settings.</p>
+              <p>
+                Select a node on the canvas to edit its settings.
+              </p>
             </div>
           ) : (
             <div className="vf-inspector-content">
               <div className="vf-selected-type">
-                <span className="vf-node-symbol">{nodeIcon(selectedNode.type)}</span>
+                <span className="vf-node-symbol">
+                  {nodeIcon(selectedNode.type)}
+                </span>
+
                 <span>
                   <strong>{selectedNode.name}</strong>
                   <small>{selectedNode.type}</small>
@@ -584,7 +747,9 @@ export default function WorkflowEditor({
                 <input
                   value={selectedNode.name}
                   maxLength={120}
-                  onChange={(event) => updateSelected({ name: event.target.value })}
+                  onChange={(event) =>
+                    updateSelected({ name: event.target.value })
+                  }
                 />
               </label>
 
@@ -597,8 +762,12 @@ export default function WorkflowEditor({
                 <span>Example parameter key</span>
                 <input
                   placeholder="e.g. url, method, expression"
-                  value={String(selectedNode.parameters.parameterKey ?? "")}
-                  onChange={(event) => updateParameter("parameterKey", event.target.value)}
+                  value={String(
+                    selectedNode.parameters.parameterKey ?? "",
+                  )}
+                  onChange={(event) =>
+                    updateParameter("parameterKey", event.target.value)
+                  }
                 />
               </label>
 
@@ -607,21 +776,34 @@ export default function WorkflowEditor({
                 <textarea
                   rows={4}
                   placeholder="Enter a value for this node..."
-                  value={String(selectedNode.parameters.parameterValue ?? "")}
-                  onChange={(event) => updateParameter("parameterValue", event.target.value)}
+                  value={String(
+                    selectedNode.parameters.parameterValue ?? "",
+                  )}
+                  onChange={(event) =>
+                    updateParameter("parameterValue", event.target.value)
+                  }
                 />
               </label>
 
               <label className="vf-toggle">
-                <span><strong>Disable node</strong><small>Skip this step when executing</small></span>
+                <span>
+                  <strong>Disable node</strong>
+                  <small>Skip this step when executing</small>
+                </span>
+
                 <input
                   type="checkbox"
                   checked={selectedNode.disabled}
-                  onChange={(event) => updateSelected({ disabled: event.target.checked })}
+                  onChange={(event) =>
+                    updateSelected({ disabled: event.target.checked })
+                  }
                 />
               </label>
 
-              <button className="vf-danger-button" onClick={deleteSelected}>
+              <button
+                className="vf-danger-button"
+                onClick={deleteSelected}
+              >
                 <Trash2 size={16} /> Delete node
               </button>
             </div>
