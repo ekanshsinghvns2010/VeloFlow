@@ -2,196 +2,219 @@ import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import {
-  canReadWorkspace,
-  canEditWorkspace,
+getWorkspaceAccess,
+canReadWorkspace,
+canEditWorkspace,
 } from "../lib/workflow-access.js";
 import { startExecution } from "../engine/execution-service.js";
 
 const executeSchema = z.object({
-  input: z.unknown().optional(),
+input: z.unknown().optional(),
+});
+
+const workspaceParamsSchema = z.object({
+workspaceId: z.string().min(1).max(128),
+});
+
+const workflowParamsSchema = workspaceParamsSchema.extend({
+workflowId: z.string().min(1).max(128),
+});
+
+const executionParamsSchema = workspaceParamsSchema.extend({
+executionId: z.string().min(1).max(128),
+});
+
+const listQuerySchema = z.object({
+page: z.coerce.number().int().min(1).default(1),
+limit: z.coerce.number().int().min(1).max(100).default(20),
+workflowId: z.string().min(1).max(128).optional(),
 });
 
 const executionRoutes: FastifyPluginAsync = async (app) => {
-  app.addHook("preHandler", app.authenticate);
+app.addHook("preHandler", app.authenticate);
 
-  app.post(
-    "/:workspaceId/workflows/:workflowId/execute",
-    async (request, reply) => {
-      const params = z.object({
-        workspaceId: z.string().min(1),
-        workflowId: z.string().min(1),
-      }).safeParse(request.params);
+app.post(
+"/:workspaceId/workflows/:workflowId/execute",
+async (request, reply) => {
+const params = workflowParamsSchema.safeParse(request.params);
+const body = executeSchema.safeParse(request.body ?? {});
 
-      const body = executeSchema.safeParse(request.body ?? {});
+  if (!params.success || !body.success) {
+    return reply.code(400).send({
+      success: false,
+      error: "Invalid execution request.",
+    });
+  }
 
-      if (!params.success || !body.success) {
-        return reply.code(400).send({
-          success: false,
-          error: "Invalid execution request.",
-        });
-      }
+  const { workspaceId, workflowId } = params.data;
+  const userId = request.authenticatedUser!.id;
 
-      const { workspaceId, workflowId } = params.data;
-      const userId = request.authenticatedUser.id;
-
-      if (!(await canEditWorkspace(userId, workspaceId))) {
-        return reply.code(403).send({
-          success: false,
-          error: "You do not have permission to execute workflows.",
-        });
-      }
-
-      try {
-        const result = await startExecution({
-          workflowId,
-          workspaceId,
-          userId,
-          input: body.data.input ?? {},
-        });
-
-        return reply.code(200).send({
-          success: true,
-          data: result,
-        });
-      } catch (error) {
-        const message =
-          error instanceof Error
-            ? error.message
-            : "Execution failed.";
-
-        request.log.error({ err: error }, "Workflow execution failed");
-
-        return reply.code(400).send({
-          success: false,
-          error: message,
-        });
-      }
-    },
+  const access = await getWorkspaceAccess(
+    workspaceId,
+    userId,
   );
 
-  app.get(
-    "/:workspaceId/executions",
-    async (request, reply) => {
-      const params = z.object({
-        workspaceId: z.string().min(1),
-      }).safeParse(request.params);
+  if (!access || !canEditWorkspace(access)) {
+    return reply.code(403).send({
+      success: false,
+      error: "You do not have permission to execute workflows.",
+    });
+  }
 
-      const query = z.object({
-        page: z.coerce.number().int().min(1).default(1),
-        limit: z.coerce.number().int().min(1).max(100).default(20),
-        workflowId: z.string().optional(),
-      }).safeParse(request.query);
+  try {
+    const result = await startExecution({
+      workflowId,
+      workspaceId,
+      userId,
+      input: body.data.input ?? {},
+    });
 
-      if (!params.success || !query.success) {
-        return reply.code(400).send({
-          success: false,
-          error: "Invalid execution query.",
-        });
-      }
+    return reply.code(202).send({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Execution could not be queued.";
 
-      const { workspaceId } = params.data;
+    request.log.error(
+      { err: error },
+      "Workflow execution could not be queued",
+    );
 
-      if (
-        !(await canReadWorkspace(
-          request.authenticatedUser.id,
-          workspaceId,
-        ))
-      ) {
-        return reply.code(403).send({
-          success: false,
-          error: "Workspace access denied.",
-        });
-      }
+    return reply.code(400).send({
+      success: false,
+      error: message,
+    });
+  }
+},
 
-      const where = {
-        workspaceId,
-        ...(query.data.workflowId
-          ? { workflowId: query.data.workflowId }
-          : {}),
-      };
+);
 
-      const [items, total] = await Promise.all([
-        prisma.execution.findMany({
-          where,
-          orderBy: { createdAt: "desc" },
-          skip: (query.data.page - 1) * query.data.limit,
-          take: query.data.limit,
-          select: {
-            id: true,
-            workflowId: true,
-            status: true,
-            createdAt: true,
-            startedAt: true,
-            finishedAt: true,
-            durationMs: true,
-            error: true,
-          },
-        }),
-        prisma.execution.count({ where }),
-      ]);
+app.get(
+"/:workspaceId/executions",
+async (request, reply) => {
+const params = workspaceParamsSchema.safeParse(request.params);
+const query = listQuerySchema.safeParse(request.query);
 
-      return {
-        success: true,
-        data: {
-          items,
-          page: query.data.page,
-          limit: query.data.limit,
-          total,
-          pages: Math.ceil(total / query.data.limit),
-        },
-      };
-    },
+  if (!params.success || !query.success) {
+    return reply.code(400).send({
+      success: false,
+      error: "Invalid execution query.",
+    });
+  }
+
+  const { workspaceId } = params.data;
+  const userId = request.authenticatedUser!.id;
+
+  const access = await getWorkspaceAccess(
+    workspaceId,
+    userId,
   );
 
-  app.get(
-    "/:workspaceId/executions/:executionId",
-    async (request, reply) => {
-      const params = z.object({
-        workspaceId: z.string().min(1),
-        executionId: z.string().min(1),
-      }).safeParse(request.params);
+  if (!access || !canReadWorkspace(access)) {
+    return reply.code(404).send({
+      success: false,
+      error: "Workspace not found or access denied.",
+    });
+  }
 
-      if (!params.success) {
-        return reply.code(400).send({
-          success: false,
-          error: "Invalid execution ID.",
-        });
-      }
+  const { page, limit, workflowId } = query.data;
 
-      const { workspaceId, executionId } = params.data;
+  const where = {
+    workspaceId,
+    ...(workflowId ? { workflowId } : {}),
+  };
 
-      if (
-        !(await canReadWorkspace(
-          request.authenticatedUser.id,
-          workspaceId,
-        ))
-      ) {
-        return reply.code(403).send({
-          success: false,
-          error: "Workspace access denied.",
-        });
-      }
+  const [items, total] = await Promise.all([
+    prisma.execution.findMany({
+      where,
+      orderBy: {
+        createdAt: "desc",
+      },
+      skip: (page - 1) * limit,
+      take: limit,
+      select: {
+        id: true,
+        workflowId: true,
+        status: true,
+        mode: true,
+        createdAt: true,
+        startedAt: true,
+        finishedAt: true,
+        durationMs: true,
+        error: true,
+      },
+    }),
+    prisma.execution.count({
+      where,
+    }),
+  ]);
 
-      const execution = await prisma.execution.findFirst({
-        where: {
-          id: executionId,
-          workspaceId,
-        },
-      });
-
-      if (!execution) {
-        return reply.code(404).send({
-          success: false,
-          error: "Execution not found.",
-        });
-      }
-
-      return {
-        success: true,
-        data: execution,
-      };
+  return {
+    success: true,
+    data: {
+      items,
+      page,
+      limit,
+      total,
+      pages: Math.ceil(total / limit),
     },
+  };
+},
+
+);
+
+app.get(
+"/:workspaceId/executions/:executionId",
+async (request, reply) => {
+const params = executionParamsSchema.safeParse(request.params);
+
+  if (!params.success) {
+    return reply.code(400).send({
+      success: false,
+      error: "Invalid execution ID.",
+    });
+  }
+
+  const { workspaceId, executionId } = params.data;
+  const userId = request.authenticatedUser!.id;
+
+  const access = await getWorkspaceAccess(
+    workspaceId,
+    userId,
   );
+
+  if (!access || !canReadWorkspace(access)) {
+    return reply.code(404).send({
+      success: false,
+      error: "Workspace not found or access denied.",
+    });
+  }
+
+  const execution = await prisma.execution.findFirst({
+    where: {
+      id: executionId,
+      workspaceId,
+    },
+  });
+
+  if (!execution) {
+    return reply.code(404).send({
+      success: false,
+      error: "Execution not found.",
+    });
+  }
+
+  return {
+    success: true,
+    data: execution,
+  };
+},
+
+);
 };
 
 export default executionRoutes;
