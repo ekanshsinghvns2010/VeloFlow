@@ -1,3 +1,4 @@
+
 import Fastify from "fastify";
 import helmet from "@fastify/helmet";
 import cors from "@fastify/cors";
@@ -79,49 +80,22 @@ async function buildServer() {
     }
   });
 
-  // Authentication and workspace APIs
-  await app.register(authRoutes, {
-    prefix: "/api/auth",
-  });
-
-  await app.register(workspaceRoutes, {
-    prefix: "/api/workspaces",
-  });
-
-  // Workflow CRUD APIs
-  await app.register(workflowRoutes, {
-    prefix: "/api",
-  });
-
-  // Execution APIs
-  await app.register(executionRoutes, {
-    prefix: "/api/workspaces",
-  });
-
-  // Credential management APIs
-  await app.register(credentialRoutes, {
-    prefix: "/api/workspaces",
-  });
-
-  // API key management APIs
-  await app.register(apiKeyRoutes, {
-    prefix: "/api/workspaces",
-  });
-
-  // Public webhook trigger endpoints
-  await app.register(webhookRoutes, {
-    prefix: "/webhooks",
-  });
+  await app.register(authRoutes, { prefix: "/api/auth" });
+  await app.register(workspaceRoutes, { prefix: "/api/workspaces" });
+  await app.register(workflowRoutes, { prefix: "/api" });
+  await app.register(executionRoutes, { prefix: "/api/workspaces" });
+  await app.register(credentialRoutes, { prefix: "/api/workspaces" });
+  await app.register(apiKeyRoutes, { prefix: "/api/workspaces" });
+  await app.register(webhookRoutes, { prefix: "/webhooks" });
 
   app.setErrorHandler((error, request, reply) => {
     request.log.error({ err: error }, "Request failed");
 
-    if (reply.sent) {
-      return;
-    }
+    if (reply.sent) return;
 
     const statusCode =
-      error.statusCode && error.statusCode >= 400
+      typeof error.statusCode === "number" &&
+      error.statusCode >= 400
         ? error.statusCode
         : 500;
 
@@ -151,8 +125,13 @@ async function main() {
     try {
       await app.close();
       process.exit(0);
-    } catch (error) {
-      app.log.error({ err: error }, "Shutdown failed");
+    } catch (error: unknown) {
+      app.log.error(
+        {
+          err: error instanceof Error ? error : String(error),
+        },
+        "Shutdown failed",
+      );
       process.exit(1);
     }
   };
@@ -165,8 +144,14 @@ async function main() {
       port: env.PORT,
       host: env.HOST,
     });
-  } catch (error) {
-    app.log.error({ err: error }, "API startup failed");
+  } catch (error: unknown) {
+    app.log.error(
+      {
+        err: error instanceof Error ? error : String(error),
+      },
+      "API startup failed",
+    );
+
     await app.close();
     process.exit(1);
   }
