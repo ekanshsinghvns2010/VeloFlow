@@ -1,3 +1,4 @@
+
 {
   "name": "@veloflow/api",
   "version": "1.0.0",
@@ -27,7 +28,7 @@
     "@fastify/sensible": "^6.0.2",
     "@prisma/client": "^6.1.0",
     "@veloflow/shared": "1.0.0",
-    "bcryptjs": "^2.4.3",
+    "bcryptjs": "^3.0.3",
     "bullmq": "^5.34.10",
     "dotenv": "^16.4.7",
     "fastify": "^5.2.0",
@@ -35,7 +36,6 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
-    "@types/bcryptjs": "^2.4.6",
     "@types/node": "^22.10.5",
     "prisma": "^6.1.0",
     "tsx": "^4.19.2",
