@@ -1,7 +1,7 @@
+
 import { useMemo, useState } from "react";
 import {
   Activity,
-  ArrowDownRight,
   ArrowRight,
   Blocks,
   CheckCircle2,
@@ -18,9 +18,10 @@ import {
   Workflow,
   Zap,
 } from "lucide-react";
+import WorkflowEditor from "./WorkflowEditor";
 
 type WorkflowItem = {
-  id: number;
+  id: string;
   name: string;
   description: string;
   status: "Active" | "Draft";
@@ -30,7 +31,7 @@ type WorkflowItem = {
 
 const initialWorkflows: WorkflowItem[] = [
   {
-    id: 1,
+    id: "demo-customer-onboarding",
     name: "Customer onboarding",
     description: "Welcome new customers and organize their details.",
     status: "Active",
@@ -38,7 +39,7 @@ const initialWorkflows: WorkflowItem[] = [
     nodes: 6,
   },
   {
-    id: 2,
+    id: "demo-form-handler",
     name: "Form submission handler",
     description: "Process incoming forms and prepare responses.",
     status: "Draft",
@@ -46,7 +47,7 @@ const initialWorkflows: WorkflowItem[] = [
     nodes: 4,
   },
   {
-    id: 3,
+    id: "demo-daily-report",
     name: "Daily report",
     description: "Prepare a scheduled summary of important activity.",
     status: "Draft",
@@ -61,6 +62,8 @@ function App() {
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState("Overview");
   const [notice, setNotice] = useState("");
+  const [editingWorkflow, setEditingWorkflow] =
+    useState<WorkflowItem | null>(null);
 
   const filteredWorkflows = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -79,7 +82,7 @@ function App() {
   }, [workflows, search, activeTab]);
 
   function createWorkflow() {
-    const id = Date.now();
+    const id = `local-${Date.now()}`;
 
     const workflow: WorkflowItem = {
       id,
@@ -91,19 +94,75 @@ function App() {
     };
 
     setWorkflows((current) => [workflow, ...current]);
+    setEditingWorkflow(workflow);
     setActiveTab("Overview");
     setSearch("");
-    setNotice("Workflow created. The visual editor is the next step.");
+    setNotice("");
+  }
+
+  function openWorkflow(workflow: WorkflowItem) {
+    setEditingWorkflow(workflow);
+    setNotice("");
+  }
+
+  function saveWorkflow(name: string, nodeCount: number) {
+    if (!editingWorkflow) return;
+
+    setWorkflows((current) =>
+      current.map((workflow) =>
+        workflow.id === editingWorkflow.id
+          ? {
+              ...workflow,
+              name: name.trim() || "Untitled workflow",
+              nodes: nodeCount,
+              updated: "Just now",
+            }
+          : workflow,
+      ),
+    );
+
+    setEditingWorkflow((current) =>
+      current
+        ? {
+            ...current,
+            name: name.trim() || "Untitled workflow",
+            nodes: nodeCount,
+            updated: "Just now",
+          }
+        : null,
+    );
+
+    setNotice("Workflow details updated in the dashboard.");
   }
 
   const activeCount = workflows.filter(
-    (workflow) => workflow.status === "Active"
+    (workflow) => workflow.status === "Active",
   ).length;
+
+  if (editingWorkflow) {
+    return (
+      <WorkflowEditor
+        key={editingWorkflow.id}
+        workflowId={editingWorkflow.id}
+        initialName={editingWorkflow.name}
+        onBack={() => setEditingWorkflow(null)}
+        onSave={saveWorkflow}
+      />
+    );
+  }
 
   return (
     <div className="app-shell">
       <aside className="sidebar">
-        <a className="brand" href="#" aria-label="VeloFlow home">
+        <a
+          className="brand"
+          href="#"
+          aria-label="VeloFlow home"
+          onClick={(event) => {
+            event.preventDefault();
+            setActiveTab("Overview");
+          }}
+        >
           <span className="brand-icon">
             <Workflow size={23} />
           </span>
@@ -113,7 +172,9 @@ function App() {
 
         <button
           className="workspace-switcher"
-          onClick={() => setNotice("Workspace settings will be connected next.")}
+          onClick={() =>
+            setNotice("Workspace settings will be connected next.")
+          }
         >
           <span className="workspace-avatar">V</span>
           <span className="workspace-copy">
@@ -127,7 +188,9 @@ function App() {
 
         <nav className="navigation">
           <button
-            className={`nav-item ${activeTab === "Overview" ? "selected" : ""}`}
+            className={`nav-item ${
+              activeTab === "Overview" ? "selected" : ""
+            }`}
             onClick={() => setActiveTab("Overview")}
           >
             <LayoutDashboard size={18} />
@@ -146,10 +209,14 @@ function App() {
           </button>
 
           <button
-            className={`nav-item ${activeTab === "Executions" ? "selected" : ""}`}
+            className={`nav-item ${
+              activeTab === "Executions" ? "selected" : ""
+            }`}
             onClick={() => {
               setActiveTab("Executions");
-              setNotice("Execution history will appear here when the API is connected.");
+              setNotice(
+                "Execution history will appear when the execution API is connected.",
+              );
             }}
           >
             <Activity size={18} />
@@ -157,10 +224,14 @@ function App() {
           </button>
 
           <button
-            className={`nav-item ${activeTab === "Credentials" ? "selected" : ""}`}
+            className={`nav-item ${
+              activeTab === "Credentials" ? "selected" : ""
+            }`}
             onClick={() => {
               setActiveTab("Credentials");
-              setNotice("Credential management will be connected to the API.");
+              setNotice(
+                "Credential management will be connected to the API.",
+              );
             }}
           >
             <Blocks size={18} />
@@ -168,7 +239,9 @@ function App() {
           </button>
 
           <button
-            className={`nav-item ${activeTab === "API keys" ? "selected" : ""}`}
+            className={`nav-item ${
+              activeTab === "API keys" ? "selected" : ""
+            }`}
             onClick={() => {
               setActiveTab("API keys");
               setNotice("API key management will be connected to the API.");
@@ -182,17 +255,22 @@ function App() {
         <div className="sidebar-bottom">
           <button
             className="nav-item"
-            onClick={() => setNotice("Settings will be added in a later step.")}
+            onClick={() =>
+              setNotice("Settings will be added in a later step.")
+            }
           >
             <Settings size={18} />
             <span>Settings</span>
           </button>
+
           <button
             className="nav-item"
-            onClick={() => setNotice("Help documentation is coming soon.")}
+            onClick={() =>
+              setNotice("Help documentation is coming soon.")
+            }
           >
             <CircleHelp size={18} />
-            <span>Help & support</span>
+            <span>Help &amp; support</span>
           </button>
 
           <div className="sidebar-profile">
@@ -221,7 +299,9 @@ function App() {
             <button
               className="icon-button"
               aria-label="Help"
-              onClick={() => setNotice("VeloFlow help center is coming soon.")}
+              onClick={() =>
+                setNotice("VeloFlow help center is coming soon.")
+              }
             >
               <CircleHelp size={19} />
             </button>
@@ -323,7 +403,9 @@ function App() {
             <div className="workflow-toolbar">
               <div className="tab-list">
                 <button
-                  className={activeTab === "Overview" ? "tab active-tab" : "tab"}
+                  className={
+                    activeTab === "Overview" ? "tab active-tab" : "tab"
+                  }
                   onClick={() => setActiveTab("Overview")}
                 >
                   All workflows
@@ -331,7 +413,9 @@ function App() {
                 </button>
                 <button
                   className={
-                    activeTab === "Active workflows" ? "tab active-tab" : "tab"
+                    activeTab === "Active workflows"
+                      ? "tab active-tab"
+                      : "tab"
                   }
                   onClick={() => setActiveTab("Active workflows")}
                 >
@@ -386,11 +470,7 @@ function App() {
                   <button
                     className="row-action"
                     aria-label={`Open ${workflow.name}`}
-                    onClick={() =>
-                      setNotice(
-                        `Selected "${workflow.name}". The workflow editor will be implemented next.`
-                      )
-                    }
+                    onClick={() => openWorkflow(workflow)}
                   >
                     <ArrowRight size={18} />
                   </button>
@@ -402,7 +482,10 @@ function App() {
                   <Search size={25} />
                   <strong>No workflows found</strong>
                   <p>Try another search or create a new workflow.</p>
-                  <button className="secondary-button" onClick={createWorkflow}>
+                  <button
+                    className="secondary-button"
+                    onClick={createWorkflow}
+                  >
                     <Plus size={16} />
                     Create workflow
                   </button>
@@ -419,12 +502,9 @@ function App() {
               <span className="getting-started-label">NEXT STEP</span>
               <h3>Your ideas, connected.</h3>
               <p>
-                VeloFlow is being built with a visual workflow editor,
-                reusable credentials, execution tracking, and integrations.
+                Build visual workflows using triggers, actions, logic, and
+                integrations. Backend saving and execution are coming next.
               </p>
-            </div>
-            <div className="getting-started-decoration">
-              <ArrowDownRight size={36} />
             </div>
           </section>
 
