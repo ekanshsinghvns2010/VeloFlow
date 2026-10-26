@@ -1,4 +1,3 @@
-
 const API_BASE_URL =
   (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/+$/, "") ||
   "https://veloflow-api.onrender.com";
@@ -53,6 +52,16 @@ export type ApiWorkflow = {
 type ApiResponse<T> = {
   data: T;
   requestId?: string;
+};
+
+type WorkflowListResponse = {
+  data: ApiWorkflow[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
 };
 
 export class ApiError extends Error {
@@ -145,7 +154,7 @@ async function request<T>(
 
   const result = (await response.json().catch(() => null)) as
     | {
-        data?: T;
+        data?: unknown;
         error?: {
           code?: string;
           message?: string;
@@ -161,6 +170,14 @@ async function request<T>(
         `Request failed with status ${response.status}.`,
       response.status,
       result?.error?.code,
+    );
+  }
+
+  if (result === null) {
+    throw new ApiError(
+      "The VeloFlow API returned an invalid JSON response.",
+      response.status,
+      "INVALID_RESPONSE",
     );
   }
 
@@ -246,11 +263,10 @@ export async function logout(): Promise<void> {
     clearSession();
   }
 }
-
 export async function getCurrentUser(): Promise<ApiUser> {
-  const result = await request<
-    ApiResponse<{ user: ApiUser }>
-  >("/api/auth/me");
+  const result = await request<ApiResponse<{ user: ApiUser }>>(
+    "/api/auth/me",
+  );
 
   return result.data.user;
 }
@@ -280,21 +296,11 @@ export async function createWorkspace(
 export async function getWorkflows(
   workspaceId: string,
 ): Promise<ApiWorkflow[]> {
-  const result = await request<
-    ApiResponse<{
-      data: ApiWorkflow[];
-      pagination: {
-        page: number;
-        limit: number;
-        total: number;
-        totalPages: number;
-      };
-    }>
-  >(
-    `/api/workspaces/${encodeURIComponent(workspaceId)}/workflows`,
+  const result = await request<WorkflowListResponse>(
+    `/api/${encodeURIComponent(workspaceId)}/workflows`,
   );
 
-  return result.data.data;
+  return result.data;
 }
 
 export async function getWorkflow(
@@ -302,7 +308,7 @@ export async function getWorkflow(
   workflowId: string,
 ): Promise<ApiWorkflow> {
   const result = await request<ApiResponse<ApiWorkflow>>(
-    `/api/workspaces/${encodeURIComponent(workspaceId)}/workflows/${encodeURIComponent(workflowId)}`,
+    `/api/${encodeURIComponent(workspaceId)}/workflows/${encodeURIComponent(workflowId)}`,
   );
 
   return result.data;
@@ -317,15 +323,13 @@ export async function createWorkflow(
   },
 ): Promise<ApiWorkflow> {
   const result = await request<ApiResponse<ApiWorkflow>>(
-    `/api/workspaces/${encodeURIComponent(workspaceId)}/workflows`,
+    `/api/${encodeURIComponent(workspaceId)}/workflows`,
     {
       method: "POST",
       body: JSON.stringify({
         name: input.name,
         description: input.description ?? "",
-        ...(input.definition
-          ? { definition: input.definition }
-          : {}),
+        ...(input.definition ? { definition: input.definition } : {}),
       }),
     },
   );
@@ -343,7 +347,7 @@ export async function updateWorkflow(
   },
 ): Promise<ApiWorkflow> {
   const result = await request<ApiResponse<ApiWorkflow>>(
-    `/api/workspaces/${encodeURIComponent(workspaceId)}/workflows/${encodeURIComponent(workflowId)}`,
+    `/api/${encodeURIComponent(workspaceId)}/workflows/${encodeURIComponent(workflowId)}`,
     {
       method: "PATCH",
       body: JSON.stringify(input),
