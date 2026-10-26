@@ -1,0 +1,58 @@
+
+name: VeloFlow CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: veloflow-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Verify TypeScript and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Generate Prisma client
+        run: npm run db:generate
+        env:
+          DATABASE_URL: postgresql://veloflow:veloflow@localhost:5432/veloflow
+          JWT_SECRET: ci-only-secret-not-for-production-123456
+          CREDENTIAL_ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+
+      - name: Type-check all workspaces
+        run: npm run typecheck
+        env:
+          DATABASE_URL: postgresql://veloflow:veloflow@localhost:5432/veloflow
+          JWT_SECRET: ci-only-secret-not-for-production-123456
+          CREDENTIAL_ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+
+      - name: Build all workspaces
+        run: npm run build
+        env:
+          DATABASE_URL: postgresql://veloflow:veloflow@localhost:5432/veloflow
+          JWT_SECRET: ci-only-secret-not-for-production-123456
+          CREDENTIAL_ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
