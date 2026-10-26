@@ -1,9 +1,14 @@
+
+import { Prisma } from "@prisma/client";
 import { Worker, type Job } from "bullmq";
 import { prisma } from "../lib/prisma.js";
 import { redisConnection } from "../lib/redis.js";
 import { runWorkflow } from "./runner.js";
 import { registerCoreNodes } from "./nodes/index.js";
-import { EXECUTION_QUEUE_NAME, type ExecutionJobData } from "./queue.js";
+import {
+  EXECUTION_QUEUE_NAME,
+  type ExecutionJobData,
+} from "./queue.js";
 import type { WorkflowDefinition } from "@veloflow/shared";
 
 registerCoreNodes();
@@ -11,7 +16,13 @@ registerCoreNodes();
 async function processExecution(
   job: Job<ExecutionJobData>,
 ): Promise<void> {
-  const { executionId, workflowId, workspaceId, userId, input } = job.data;
+  const {
+    executionId,
+    workflowId,
+    workspaceId,
+    userId,
+    input,
+  } = job.data;
 
   const execution = await prisma.execution.findFirst({
     where: {
@@ -43,7 +54,7 @@ async function processExecution(
       data: {
         status: "FAILED",
         finishedAt: new Date(),
-        error: "Workflow is missing or no longer active.",
+        error: { message: "Workflow is missing or no longer active." },
       },
     });
 
@@ -55,7 +66,7 @@ async function processExecution(
     data: {
       status: "RUNNING",
       startedAt: new Date(),
-      error: null,
+      error: Prisma.JsonNull,
     },
   });
 
@@ -71,12 +82,15 @@ async function processExecution(
       },
     );
   } catch (error) {
+    const message =
+      error instanceof Error ? error.message : String(error);
+
     await prisma.execution.update({
       where: { id: executionId },
       data: {
         status: "FAILED",
         finishedAt: new Date(),
-        error: error instanceof Error ? error.message : String(error),
+        error: { message },
       },
     });
 
@@ -103,7 +117,7 @@ export function createExecutionWorker() {
   });
 
   worker.on("failed", (job, error) => {
-    console.error(`Execution job failed: ${job?.id}`, error.message);
+    console.error("Execution job failed:", job?.id, error.message);
   });
 
   worker.on("error", (error) => {
