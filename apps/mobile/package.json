@@ -3,7 +3,7 @@
   "name": "@veloflow/mobile",
   "version": "1.0.0",
   "private": true,
-  "main": "expo-router/entry",
+  "main": "index.ts",
   "scripts": {
     "start": "expo start",
     "android": "expo start --android",
