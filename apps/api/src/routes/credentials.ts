@@ -1,12 +1,22 @@
+
 import type { FastifyPluginAsync } from "fastify";
-import { z } from "zod";
 import { randomUUID } from "node:crypto";
+import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { encryptCredential } from "../lib/credential-crypto.js";
 import {
+  getWorkspaceAccess,
   canEditWorkspace,
   canReadWorkspace,
 } from "../lib/workflow-access.js";
+
+const workspaceParamsSchema = z.object({
+  workspaceId: z.string().min(1).max(128),
+});
+
+const credentialParamsSchema = workspaceParamsSchema.extend({
+  credentialId: z.string().min(1).max(128),
+});
 
 const createCredentialSchema = z.object({
   name: z.string().trim().min(1).max(100),
@@ -17,15 +27,25 @@ const createCredentialSchema = z.object({
 const updateCredentialSchema = z.object({
   name: z.string().trim().min(1).max(100).optional(),
   data: z.record(z.string(), z.unknown()).optional(),
-});
+}).refine(
+  (data) => Object.keys(data).length > 0,
+  { message: "At least one field must be provided." },
+);
 
 const credentialRoutes: FastifyPluginAsync = async (app) => {
   app.addHook("preHandler", app.authenticate);
 
   app.get("/:workspaceId/credentials", async (request, reply) => {
-    const params = z.object({
-      workspaceId: z.string().min(1),
-    }).safeParse(request.params);
+    const user = request.authenticatedUser;
+
+    if (!user) {
+      return reply.code(401).send({
+        success: false,
+        error: "Authentication required.",
+      });
+    }
+
+    const params = workspaceParamsSchema.safeParse(request.params);
 
     if (!params.success) {
       return reply.code(400).send({
@@ -35,16 +55,12 @@ const credentialRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const { workspaceId } = params.data;
+    const access = await getWorkspaceAccess(workspaceId, user.id);
 
-    if (
-      !(await canReadWorkspace(
-        request.authenticatedUser.id,
-        workspaceId,
-      ))
-    ) {
-      return reply.code(403).send({
+    if (!access || !canReadWorkspace(access)) {
+      return reply.code(404).send({
         success: false,
-        error: "Workspace access denied.",
+        error: "Workspace not found or access denied.",
       });
     }
 
@@ -65,10 +81,16 @@ const credentialRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.post("/:workspaceId/credentials", async (request, reply) => {
-    const params = z.object({
-      workspaceId: z.string().min(1),
-    }).safeParse(request.params);
+    const user = request.authenticatedUser;
 
+    if (!user) {
+      return reply.code(401).send({
+        success: false,
+        error: "Authentication required.",
+      });
+    }
+
+    const params = workspaceParamsSchema.safeParse(request.params);
     const body = createCredentialSchema.safeParse(request.body);
 
     if (!params.success || !body.success) {
@@ -79,13 +101,16 @@ const credentialRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const { workspaceId } = params.data;
+    const access = await getWorkspaceAccess(workspaceId, user.id);
 
-    if (
-      !(await canEditWorkspace(
-        request.authenticatedUser.id,
-        workspaceId,
-      ))
-    ) {
+    if (!access) {
+      return reply.code(404).send({
+        success: false,
+        error: "Workspace not found or access denied.",
+      });
+    }
+
+    if (!canEditWorkspace(access)) {
       return reply.code(403).send({
         success: false,
         error: "Workspace edit permission required.",
@@ -96,6 +121,7 @@ const credentialRoutes: FastifyPluginAsync = async (app) => {
       data: {
         id: randomUUID(),
         workspaceId,
+        createdById: user.id,
         name: body.data.name,
         type: body.data.type,
         encryptedData: encryptCredential(body.data.data),
@@ -119,11 +145,16 @@ const credentialRoutes: FastifyPluginAsync = async (app) => {
   app.patch(
     "/:workspaceId/credentials/:credentialId",
     async (request, reply) => {
-      const params = z.object({
-        workspaceId: z.string().min(1),
-        credentialId: z.string().min(1),
-      }).safeParse(request.params);
+      const user = request.authenticatedUser;
 
+      if (!user) {
+        return reply.code(401).send({
+          success: false,
+          error: "Authentication required.",
+        });
+      }
+
+      const params = credentialParamsSchema.safeParse(request.params);
       const body = updateCredentialSchema.safeParse(request.body);
 
       if (!params.success || !body.success) {
@@ -134,13 +165,16 @@ const credentialRoutes: FastifyPluginAsync = async (app) => {
       }
 
       const { workspaceId, credentialId } = params.data;
+      const access = await getWorkspaceAccess(workspaceId, user.id);
 
-      if (
-        !(await canEditWorkspace(
-          request.authenticatedUser.id,
-          workspaceId,
-        ))
-      ) {
+      if (!access) {
+        return reply.code(404).send({
+          success: false,
+          error: "Workspace not found or access denied.",
+        });
+      }
+
+      if (!canEditWorkspace(access)) {
         return reply.code(403).send({
           success: false,
           error: "Workspace edit permission required.",
@@ -164,7 +198,7 @@ const credentialRoutes: FastifyPluginAsync = async (app) => {
       }
 
       const credential = await prisma.credential.update({
-        where: { id: credentialId },
+        where: { id: existing.id },
         data: {
           ...(body.data.name !== undefined
             ? { name: body.data.name }
@@ -189,10 +223,16 @@ const credentialRoutes: FastifyPluginAsync = async (app) => {
   app.delete(
     "/:workspaceId/credentials/:credentialId",
     async (request, reply) => {
-      const params = z.object({
-        workspaceId: z.string().min(1),
-        credentialId: z.string().min(1),
-      }).safeParse(request.params);
+      const user = request.authenticatedUser;
+
+      if (!user) {
+        return reply.code(401).send({
+          success: false,
+          error: "Authentication required.",
+        });
+      }
+
+      const params = credentialParamsSchema.safeParse(request.params);
 
       if (!params.success) {
         return reply.code(400).send({
@@ -202,13 +242,16 @@ const credentialRoutes: FastifyPluginAsync = async (app) => {
       }
 
       const { workspaceId, credentialId } = params.data;
+      const access = await getWorkspaceAccess(workspaceId, user.id);
 
-      if (
-        !(await canEditWorkspace(
-          request.authenticatedUser.id,
-          workspaceId,
-        ))
-      ) {
+      if (!access) {
+        return reply.code(404).send({
+          success: false,
+          error: "Workspace not found or access denied.",
+        });
+      }
+
+      if (!canEditWorkspace(access)) {
         return reply.code(403).send({
           success: false,
           error: "Workspace edit permission required.",
@@ -232,11 +275,14 @@ const credentialRoutes: FastifyPluginAsync = async (app) => {
       }
 
       await prisma.credential.update({
-        where: { id: credentialId },
+        where: { id: existing.id },
         data: { status: "REVOKED" },
       });
 
-      return { success: true, data: { revoked: true } };
+      return {
+        success: true,
+        data: { revoked: true },
+      };
     },
   );
 };
