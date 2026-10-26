@@ -1,0 +1,19 @@
+
+{
+  "expo": {
+    "name": "VeloFlow",
+    "slug": "veloflow",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "scheme": "veloflow",
+    "newArchEnabled": false,
+    "android": {
+      "package": "com.veloflow.app",
+      "versionCode": 1
+    },
+    "ios": {
+      "bundleIdentifier": "com.veloflow.app"
+    }
+  }
+}
