@@ -1,4 +1,3 @@
-
 import Fastify from "fastify";
 import helmet from "@fastify/helmet";
 import cors from "@fastify/cors";
@@ -93,10 +92,20 @@ async function buildServer() {
 
     if (reply.sent) return;
 
+    const normalizedError =
+      error instanceof Error
+        ? error
+        : new Error(String(error));
+
+    const candidateStatus =
+      "statusCode" in normalizedError &&
+      typeof normalizedError.statusCode === "number"
+        ? normalizedError.statusCode
+        : 500;
+
     const statusCode =
-      typeof error.statusCode === "number" &&
-      error.statusCode >= 400
-        ? error.statusCode
+      candidateStatus >= 400 && candidateStatus <= 599
+        ? candidateStatus
         : 500;
 
     reply.code(statusCode).send({
@@ -104,7 +113,7 @@ async function buildServer() {
       error:
         statusCode >= 500
           ? "An internal server error occurred."
-          : error.message,
+          : normalizedError.message,
     });
   });
 
