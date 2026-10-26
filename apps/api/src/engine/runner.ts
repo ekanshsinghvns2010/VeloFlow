@@ -1,14 +1,14 @@
+
 import { randomUUID } from "node:crypto";
-import type {
-  NodeExecutionResult,
-  WorkflowDefinition,
-  WorkflowNode,
-} from "@veloflow/shared";
+import { Prisma } from "@prisma/client";
+import type { WorkflowDefinition } from "@veloflow/shared";
 import { prisma } from "../lib/prisma.js";
 import { buildWorkflowPlan } from "./graph.js";
 import { nodeRegistry } from "./registry.js";
 import { registerCoreNodes } from "./nodes/index.js";
 import type {
+  EngineNode,
+  EngineNodeResult,
   EngineRunOptions,
   ExecutionContext,
   NodeRunRecord,
@@ -42,19 +42,19 @@ function outputSize(value: unknown): number {
 }
 
 function selectConnections(
-  node: WorkflowNode,
+  node: EngineNode,
   connections: Array<{
     sourceNodeId: string;
     targetNodeId: string;
     sourceOutput?: string | null;
   }>,
-  result: NodeExecutionResult,
+  result: EngineNodeResult,
 ) {
   const outgoing = connections.filter(
     (connection) => connection.sourceNodeId === node.id,
   );
 
-  if (node.kind === "condition") {
+  if (node.type === "condition") {
     const output = result.output as
       | { branch?: string }
       | undefined;
@@ -63,13 +63,12 @@ function selectConnections(
 
     return outgoing.filter((connection) => {
       const handle = connection.sourceOutput;
-
       if (!handle) return branch === "true";
       return handle === branch;
     });
   }
 
-  if (node.kind === "switch") {
+  if (node.type === "switch") {
     const output = result.output as
       | { branch?: string }
       | undefined;
@@ -78,13 +77,20 @@ function selectConnections(
 
     return outgoing.filter((connection) => {
       const handle = connection.sourceOutput;
-
       if (!handle) return branch === "default";
       return handle === branch;
     });
   }
 
   return outgoing;
+}
+
+function toPrismaJson(value: unknown) {
+  if (value === undefined || value === null) {
+    return Prisma.JsonNull;
+  }
+
+  return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 }
 
 export async function runWorkflow(
@@ -106,7 +112,6 @@ export async function runWorkflow(
   const nodeResults: NodeRunRecord[] = [];
   const outputs = new Map<string, unknown>();
   const failedNodes = new Set<string>();
-  const skippedNodes = new Set<string>();
 
   const executionContext: ExecutionContext = {
     executionId: options.executionId,
@@ -139,11 +144,7 @@ export async function runWorkflow(
     throw new Error("Workflow has no starting node.");
   }
 
-  const activeNodeIds = new Set<string>();
-
-  for (const node of startNodes) {
-    activeNodeIds.add(node.id);
-  }
+  const activeNodeIds = new Set(startNodes.map((node) => node.id));
 
   try {
     for (const nodeId of plan.executionOrder) {
@@ -160,7 +161,6 @@ export async function runWorkflow(
       }
 
       if (!activeNodeIds.has(nodeId)) {
-        skippedNodes.add(nodeId);
         nodeResults.push({
           nodeId,
           nodeName: node.name,
@@ -185,7 +185,7 @@ export async function runWorkflow(
             ? incomingValues[0]
             : incomingValues;
 
-      const handler = nodeRegistry.require(node.kind);
+      const handler = nodeRegistry.require(node.type);
       const nodeStartedAt = new Date();
 
       const record: NodeRunRecord = {
@@ -220,8 +220,7 @@ export async function runWorkflow(
         record.status = "succeeded";
         record.output = result.output;
         record.finishedAt = new Date().toISOString();
-        record.durationMs =
-          Date.now() - nodeStartedAt.getTime();
+        record.durationMs = Date.now() - nodeStartedAt.getTime();
 
         const selectedConnections = selectConnections(
           node,
@@ -236,12 +235,12 @@ export async function runWorkflow(
         record.status = "failed";
         record.error = serializeError(error);
         record.finishedAt = new Date().toISOString();
-        record.durationMs =
-          Date.now() - nodeStartedAt.getTime();
+        record.durationMs = Date.now() - nodeStartedAt.getTime();
 
         failedNodes.add(nodeId);
         status = "FAILED";
-        failureMessage = `Node "${node.name}" failed: ${serializeError(error)}`;
+        failureMessage =
+          `Node "${node.name}" failed: ${serializeError(error)}`;
         break;
       }
     }
@@ -260,6 +259,7 @@ export async function runWorkflow(
   }
 
   const finishedAt = new Date();
+
   const result: EngineRunResult = {
     executionId: options.executionId || randomUUID(),
     status,
@@ -277,9 +277,11 @@ export async function runWorkflow(
       status: result.status,
       finishedAt,
       durationMs: result.durationMs,
-      output: JSON.parse(JSON.stringify(result.output ?? null)),
-      error: result.error ?? null,
-      nodeResults: JSON.parse(JSON.stringify(result.nodeResults)),
+      output: toPrismaJson(result.output),
+      error: result.error === undefined
+        ? Prisma.JsonNull
+        : toPrismaJson(result.error),
+      nodeResults: toPrismaJson(result.nodeResults),
     },
   });
 
