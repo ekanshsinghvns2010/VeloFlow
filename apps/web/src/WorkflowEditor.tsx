@@ -1,4 +1,3 @@
-
 import { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
@@ -28,7 +27,13 @@ import {
   createWorkflowNode,
   removeWorkflowNode,
 } from "@veloflow/shared";
-import { getWorkflow, updateWorkflow } from "./lib/api";
+import {
+  activateWorkflow,
+  executeWorkflow,
+  getExecution,
+  getWorkflow,
+  updateWorkflow,
+} from "./lib/api";
 import "./WorkflowEditor.css";
 
 type Props = {
@@ -211,6 +216,8 @@ export default function WorkflowEditor({
   const [connectFrom, setConnectFrom] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [executing, setExecuting] = useState(false);
+  const [executionId, setExecutionId] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -258,7 +265,9 @@ export default function WorkflowEditor({
         setName(initialName);
         setDefinition(local);
         setSelectedId(local.nodes[0]?.id ?? null);
-        setNotice("Could not load the server version. You can still edit and retry saving.");
+        setNotice(
+          "Could not load the server version. You can still edit and retry saving.",
+        );
       } finally {
         if (active) setLoading(false);
       }
@@ -345,27 +354,32 @@ export default function WorkflowEditor({
 
     setConnectFrom(null);
   }
+  async function persistWorkflow(): Promise<WorkflowDefinition> {
+    const next = { ...definition, name };
+
+    await updateWorkflow(workspaceId, workflowId, {
+      name,
+      definition: next,
+    });
+
+    localStorage.setItem(
+      `veloflow-workflow-${workflowId}`,
+      JSON.stringify(next),
+    );
+
+    updateDefinition(next);
+    onSave(name, next.nodes.length);
+
+    return next;
+  }
 
   async function saveWorkflow() {
-    if (saving) return;
+    if (saving || executing) return;
 
     setSaving(true);
 
     try {
-      const next = { ...definition, name };
-
-      await updateWorkflow(workspaceId, workflowId, {
-        name,
-        definition: next,
-      });
-
-      localStorage.setItem(
-        `veloflow-workflow-${workflowId}`,
-        JSON.stringify(next),
-      );
-
-      updateDefinition(next);
-      onSave(name, next.nodes.length);
+      await persistWorkflow();
       setNotice("Workflow saved to the server.");
     } catch (error) {
       setNotice(
@@ -375,6 +389,102 @@ export default function WorkflowEditor({
       );
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function testWorkflow() {
+    if (saving || executing || loading) return;
+
+    if (definition.nodes.length === 0) {
+      setNotice("Add at least one node before testing this workflow.");
+      return;
+    }
+
+    setExecuting(true);
+    setExecutionId(null);
+
+    try {
+      setNotice("Saving workflow before execution...");
+      await persistWorkflow();
+
+      setNotice("Activating workflow...");
+      await activateWorkflow(workspaceId, workflowId);
+
+      setNotice("Starting workflow execution...");
+      const started = await executeWorkflow(
+        workspaceId,
+        workflowId,
+        {},
+      );
+
+      setExecutionId(started.id);
+      setNotice(
+        `Execution ${started.id} queued. Waiting for the worker...`,
+      );
+
+      const terminalStatuses = new Set([
+        "SUCCEEDED",
+        "SUCCESS",
+        "COMPLETED",
+        "FAILED",
+        "CANCELLED",
+      ]);
+
+      for (let attempt = 0; attempt < 30; attempt += 1) {
+        await new Promise<void>((resolve) => {
+          window.setTimeout(resolve, 1500);
+        });
+
+        const current = await getExecution(
+          workspaceId,
+          started.id,
+        );
+
+        const status = String(
+          current.status || "UNKNOWN",
+        ).toUpperCase();
+
+        if (terminalStatuses.has(status)) {
+          if (
+            ["SUCCEEDED", "SUCCESS", "COMPLETED"].includes(status)
+          ) {
+            setNotice(
+              `Workflow succeeded. Execution ID: ${started.id}`,
+            );
+          } else {
+            const errorValue = current.error;
+
+            const errorMessage =
+              typeof errorValue === "string"
+                ? errorValue
+                : errorValue
+                  ? JSON.stringify(errorValue)
+                  : "No error details were returned.";
+
+            setNotice(
+              `Workflow ${status.toLowerCase()}: ${errorMessage}`,
+            );
+          }
+
+          return;
+        }
+
+        setNotice(
+          `Execution status: ${status}. Checking again...`,
+        );
+      }
+
+      setNotice(
+        `Execution ${started.id} is still running or queued. Check again in the execution history.`,
+      );
+    } catch (error) {
+      setNotice(
+        error instanceof Error
+          ? `Test failed: ${error.message}`
+          : "Test failed. Please check the API and execution worker.",
+      );
+    } finally {
+      setExecuting(false);
     }
   }
 
@@ -478,7 +588,7 @@ export default function WorkflowEditor({
           <button
             className="vf-secondary-button"
             onClick={saveWorkflow}
-            disabled={loading || saving}
+            disabled={loading || saving || executing}
           >
             <Save size={16} />
             {saving ? "Saving..." : "Save"}
@@ -486,13 +596,11 @@ export default function WorkflowEditor({
 
           <button
             className="vf-primary-button"
-            onClick={() =>
-              setNotice(
-                "Editor is ready. Execution will be enabled after the node runner is connected.",
-              )
-            }
+            onClick={testWorkflow}
+            disabled={loading || saving || executing}
           >
-            <Play size={16} /> Test workflow
+            <Play size={16} />
+            {executing ? "Testing..." : "Test workflow"}
           </button>
         </div>
       </header>
@@ -576,7 +684,6 @@ export default function WorkflowEditor({
               Cancel connection
             </button>
           </div>
-
           <div className="vf-canvas-scroll">
             <div className="vf-canvas">
               <svg className="vf-connections" aria-hidden="true">
@@ -708,6 +815,11 @@ export default function WorkflowEditor({
           {notice && (
             <div className="vf-notice" role="status">
               {notice}
+              {executionId && (
+                <div>
+                  <small>Execution ID: {executionId}</small>
+                </div>
+              )}
             </div>
           )}
         </main>
