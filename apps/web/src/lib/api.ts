@@ -392,7 +392,7 @@ export async function executeWorkflow(
   input: unknown = {},
 ): Promise<ApiExecution> {
   const result = await request<ApiResponse<ApiExecution>>(
-    `/api/${encodeURIComponent(workspaceId)}/workflows/${encodeURIComponent(workflowId)}/execute`,
+    `/api/workspaces/${encodeURIComponent(workspaceId)}/workflows/${encodeURIComponent(workflowId)}/execute`,
     {
       method: "POST",
       body: JSON.stringify({ input }),
@@ -407,7 +407,7 @@ export async function getExecution(
   executionId: string,
 ): Promise<ApiExecution> {
   const result = await request<ApiResponse<ApiExecution>>(
-    `/api/${encodeURIComponent(workspaceId)}/executions/${encodeURIComponent(executionId)}`,
+    `/api/workspaces/${encodeURIComponent(workspaceId)}/executions/${encodeURIComponent(executionId)}`,
   );
 
   return result.data;
