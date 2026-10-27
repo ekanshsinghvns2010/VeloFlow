@@ -356,3 +356,59 @@ export async function updateWorkflow(
 
   return result.data;
 }
+
+export type ApiExecution = {
+  id: string;
+  workflowId: string;
+  workspaceId: string;
+  status: string;
+  mode?: string;
+  input?: unknown;
+  output?: unknown;
+  error?: string | null;
+  createdAt?: string;
+  startedAt?: string | null;
+  finishedAt?: string | null;
+  durationMs?: number | null;
+};
+
+export async function activateWorkflow(
+  workspaceId: string,
+  workflowId: string,
+): Promise<ApiWorkflow> {
+  const result = await request<ApiResponse<ApiWorkflow>>(
+    `/api/${encodeURIComponent(workspaceId)}/workflows/${encodeURIComponent(workflowId)}/activate`,
+    {
+      method: "POST",
+    },
+  );
+
+  return result.data;
+}
+
+export async function executeWorkflow(
+  workspaceId: string,
+  workflowId: string,
+  input: unknown = {},
+): Promise<ApiExecution> {
+  const result = await request<ApiResponse<ApiExecution>>(
+    `/api/${encodeURIComponent(workspaceId)}/workflows/${encodeURIComponent(workflowId)}/execute`,
+    {
+      method: "POST",
+      body: JSON.stringify({ input }),
+    },
+  );
+
+  return result.data;
+}
+
+export async function getExecution(
+  workspaceId: string,
+  executionId: string,
+): Promise<ApiExecution> {
+  const result = await request<ApiResponse<ApiExecution>>(
+    `/api/${encodeURIComponent(workspaceId)}/executions/${encodeURIComponent(executionId)}`,
+  );
+
+  return result.data;
+}
