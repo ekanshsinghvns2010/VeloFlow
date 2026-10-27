@@ -407,6 +407,7 @@ function App() {
     return (
       <WorkflowEditor
         key={editingWorkflow.id}
+        workspaceId={workspaceId}
         workflowId={editingWorkflow.id}
         initialName={editingWorkflow.name}
         onBack={() => {
