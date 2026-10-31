@@ -536,3 +536,221 @@ export default function WorkflowEditorScreen({
               </Pressable>
             </View>
           </View>
+          {/* BOTTOM NODE ACTIONS */}
+          <View style={styles.bottomPanel}>
+            {connectingFrom ? (
+              <View style={styles.connectionNotice}>
+                <View style={styles.connectionNoticeDot} />
+
+                <Text style={styles.connectionNoticeText}>
+                  Choose another node to connect
+                </Text>
+
+                <Pressable
+                  onPress={() => setConnectingFrom(null)}
+                >
+                  <Text style={styles.cancelText}>Cancel</Text>
+                </Pressable>
+              </View>
+            ) : selectedNode ? (
+              <>
+                <View style={styles.selectedNodeInfo}>
+                  <View
+                    style={[
+                      styles.selectedNodeIcon,
+                      {
+                        backgroundColor:
+                          getNodeColor(selectedNode.type) + "20",
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={{
+                        color: getNodeColor(selectedNode.type),
+                        fontWeight: "800",
+                      }}
+                    >
+                      {getNodeIcon(selectedNode.type)}
+                    </Text>
+                  </View>
+
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.selectedNodeTitle}>
+                      {selectedNode.name}
+                    </Text>
+
+                    <Text style={styles.selectedNodeSubtitle}>
+                      Node selected
+                    </Text>
+                  </View>
+
+                  <Pressable
+                    style={styles.deleteButton}
+                    onPress={deleteSelectedNode}
+                  >
+                    <Text style={styles.deleteButtonText}>
+                      Delete
+                    </Text>
+                  </Pressable>
+                </View>
+
+                <View style={styles.nodeActions}>
+                  <Pressable
+                    style={styles.connectButton}
+                    onPress={startConnection}
+                  >
+                    <Text style={styles.connectButtonText}>
+                      ⤷ Connect to another node
+                    </Text>
+                  </Pressable>
+
+                  <Pressable
+                    style={styles.addButton}
+                    onPress={() => setShowNodePanel(true)}
+                  >
+                    <Text style={styles.addButtonText}>
+                      + Add node
+                    </Text>
+                  </Pressable>
+                </View>
+              </>
+            ) : (
+              <View style={styles.bottomEmpty}>
+                <Text style={styles.bottomEmptyText}>
+                  Select a node to edit or connect it
+                </Text>
+
+                <Pressable
+                  style={styles.addButton}
+                  onPress={() => setShowNodePanel(true)}
+                >
+                  <Text style={styles.addButtonText}>
+                    + Add node
+                  </Text>
+                </Pressable>
+              </View>
+            )}
+          </View>
+        </>
+      ) : (
+        <View style={styles.settingsPage}>
+          <Text style={styles.settingsTitle}>
+            Workflow settings
+          </Text>
+
+          <Text style={styles.settingsDescription}>
+            Configure workflow behavior here. More settings can
+            be connected to your backend later.
+          </Text>
+
+          <View style={styles.settingsCard}>
+            <Text style={styles.settingsLabel}>
+              Workflow name
+            </Text>
+
+            <Text style={styles.settingsValue}>
+              {workflow.name}
+            </Text>
+          </View>
+
+          <View style={styles.settingsCard}>
+            <Text style={styles.settingsLabel}>
+              Nodes
+            </Text>
+
+            <Text style={styles.settingsValue}>
+              {workflow.nodes.length}
+            </Text>
+          </View>
+
+          <View style={styles.settingsCard}>
+            <Text style={styles.settingsLabel}>
+              Connections
+            </Text>
+
+            <Text style={styles.settingsValue}>
+              {workflow.connections.length}
+            </Text>
+          </View>
+        </View>
+      )}
+
+      {/* ADD NODE PANEL */}
+      {showNodePanel && (
+        <View style={styles.modalOverlay}>
+          <Pressable
+            style={styles.modalBackdrop}
+            onPress={() => setShowNodePanel(false)}
+          />
+
+          <View style={styles.nodePanel}>
+            <View style={styles.panelHandle} />
+
+            <View style={styles.panelHeader}>
+              <View>
+                <Text style={styles.panelTitle}>
+                  Add a node
+                </Text>
+
+                <Text style={styles.panelSubtitle}>
+                  Choose an action for your workflow
+                </Text>
+              </View>
+
+              <Pressable
+                onPress={() => setShowNodePanel(false)}
+              >
+                <Text style={styles.closePanel}>×</Text>
+              </Pressable>
+            </View>
+
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.nodeList}
+            >
+              {NODE_TYPES.map((item) => (
+                <Pressable
+                  key={item.type}
+                  style={styles.nodeOption}
+                  onPress={() => addNode(item.type)}
+                >
+                  <View
+                    style={[
+                      styles.nodeOptionIcon,
+                      {
+                        backgroundColor: item.color + "20",
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.nodeOptionIconText,
+                        { color: item.color },
+                      ]}
+                    >
+                      {item.icon}
+                    </Text>
+                  </View>
+
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.nodeOptionTitle}>
+                      {item.title}
+                    </Text>
+
+                    <Text style={styles.nodeOptionDescription}>
+                      {item.description}
+                    </Text>
+                  </View>
+
+                  <Text style={styles.nodeOptionArrow}>
+                    ›
+                  </Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      )}
+    </View>
+  );
+}
