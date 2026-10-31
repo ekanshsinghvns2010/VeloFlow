@@ -754,3 +754,554 @@ export default function WorkflowEditorScreen({
     </View>
   );
 }
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
+
+  topBar: {
+    minHeight: 76,
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+    gap: 12,
+  },
+
+  backButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: COLORS.panel,
+  },
+
+  backText: {
+    color: COLORS.text,
+    fontSize: 25,
+    lineHeight: 28,
+  },
+
+  titleArea: {
+    flex: 1,
+    minWidth: 0,
+  },
+
+  eyebrow: {
+    color: COLORS.muted,
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 1.2,
+    marginBottom: 3,
+  },
+
+  workflowTitle: {
+    color: COLORS.text,
+    fontSize: 16,
+    fontWeight: "700",
+  },
+
+  draftBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 20,
+    backgroundColor: COLORS.panel,
+  },
+
+  draftDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: COLORS.warning,
+  },
+
+  draftText: {
+    color: COLORS.muted,
+    fontSize: 10,
+    fontWeight: "600",
+  },
+
+  toolbar: {
+    height: 52,
+    paddingHorizontal: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+
+  toolbarTab: {
+    paddingHorizontal: 13,
+    paddingVertical: 9,
+    borderRadius: 9,
+  },
+
+  toolbarTabActive: {
+    backgroundColor: COLORS.panel,
+  },
+
+  toolbarTabText: {
+    color: COLORS.muted,
+    fontSize: 12,
+    fontWeight: "600",
+  },
+
+  toolbarTabTextActive: {
+    color: COLORS.text,
+  },
+
+  saveButton: {
+    marginLeft: "auto",
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 9,
+    backgroundColor: COLORS.accent,
+  },
+
+  saveButtonText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+
+  canvasContainer: {
+    flex: 1,
+    overflow: "hidden",
+    backgroundColor: COLORS.canvas,
+  },
+
+  canvas: {
+    flex: 1,
+    minHeight: 400,
+    position: "relative",
+  },
+
+  grid: {
+    ...StyleSheet.absoluteFillObject,
+    opacity: 0.45,
+  },
+
+  node: {
+    position: "absolute",
+    width: NODE_WIDTH,
+    height: NODE_HEIGHT,
+    padding: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 11,
+    borderRadius: 13,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.panel,
+  },
+
+  nodeSelected: {
+    borderColor: COLORS.accent,
+    borderWidth: 1.5,
+  },
+
+  nodeIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: COLORS.iconBg,
+  },
+
+  nodeIconText: {
+    color: COLORS.accent,
+    fontSize: 17,
+    fontWeight: "800",
+  },
+
+  nodeContent: {
+    flex: 1,
+    minWidth: 0,
+  },
+
+  nodeName: {
+    color: COLORS.text,
+    fontSize: 13,
+    fontWeight: "700",
+    marginBottom: 4,
+  },
+
+  nodeType: {
+    color: COLORS.muted,
+    fontSize: 10,
+  },
+
+  nodeStatus: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: COLORS.success,
+  },
+
+  emptyCanvas: {
+    position: "absolute",
+    top: "35%",
+    left: 24,
+    right: 24,
+    alignItems: "center",
+  },
+
+  emptyIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: COLORS.panel,
+    marginBottom: 14,
+  },
+
+  emptyIconText: {
+    color: COLORS.accent,
+    fontSize: 25,
+    fontWeight: "700",
+  },
+
+  emptyTitle: {
+    color: COLORS.text,
+    fontSize: 17,
+    fontWeight: "700",
+    marginBottom: 7,
+  },
+
+  emptyDescription: {
+    color: COLORS.muted,
+    fontSize: 12,
+    textAlign: "center",
+    lineHeight: 19,
+    maxWidth: 260,
+    marginBottom: 16,
+  },
+
+  emptyButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 11,
+    borderRadius: 10,
+    backgroundColor: COLORS.accent,
+  },
+
+  emptyButtonText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+
+  canvasControls: {
+    position: "absolute",
+    right: 14,
+    top: 14,
+    gap: 8,
+  },
+
+  canvasControlButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: COLORS.panel,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+
+  canvasControlText: {
+    color: COLORS.text,
+    fontSize: 20,
+    fontWeight: "600",
+  },
+
+  bottomPanel: {
+    paddingHorizontal: 16,
+    paddingTop: 13,
+    paddingBottom: 18,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+    backgroundColor: COLORS.background,
+  },
+
+  selectedNodeInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 12,
+  },
+
+  selectedNodeIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: COLORS.iconBg,
+  },
+
+  selectedNodeTitle: {
+    color: COLORS.text,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+
+  selectedNodeSubtitle: {
+    color: COLORS.muted,
+    fontSize: 10,
+    marginTop: 3,
+  },
+
+  deleteButton: {
+    marginLeft: "auto",
+    paddingHorizontal: 11,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: COLORS.dangerBg,
+  },
+
+  deleteButtonText: {
+    color: COLORS.danger,
+    fontSize: 11,
+    fontWeight: "700",
+  },
+
+  nodeActions: {
+    flexDirection: "row",
+    gap: 9,
+  },
+
+  connectButton: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.panel,
+  },
+
+  connectButtonText: {
+    color: COLORS.text,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+
+  addButton: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: COLORS.accent,
+  },
+
+  addButtonText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+
+  bottomEmpty: {
+    alignItems: "center",
+    gap: 10,
+  },
+
+  bottomEmptyText: {
+    color: COLORS.muted,
+    fontSize: 11,
+    textAlign: "center",
+  },
+
+  connectionNotice: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 12,
+    padding: 10,
+    borderRadius: 9,
+    backgroundColor: COLORS.iconBg,
+  },
+
+  connectionNoticeDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: COLORS.accent,
+  },
+
+  connectionNoticeText: {
+    flex: 1,
+    color: COLORS.text,
+    fontSize: 11,
+  },
+
+  cancelText: {
+    color: COLORS.muted,
+    fontSize: 12,
+    fontWeight: "600",
+    padding: 8,
+  },
+
+  modalOverlay: {
+    flex: 1,
+    justifyContent: "flex-end",
+  },
+
+  modalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.62)",
+  },
+
+  nodePanel: {
+    maxHeight: "82%",
+    paddingTop: 12,
+    paddingHorizontal: 18,
+    paddingBottom: 24,
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+    backgroundColor: COLORS.background,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+
+  panelHandle: {
+    width: 38,
+    height: 4,
+    borderRadius: 2,
+    alignSelf: "center",
+    backgroundColor: COLORS.muted,
+    opacity: 0.5,
+    marginBottom: 16,
+  },
+
+  panelHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+
+  panelTitle: {
+    color: COLORS.text,
+    fontSize: 18,
+    fontWeight: "800",
+  },
+
+  panelSubtitle: {
+    color: COLORS.muted,
+    fontSize: 11,
+    marginTop: 4,
+  },
+
+  closePanel: {
+    marginLeft: "auto",
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: COLORS.panel,
+  },
+
+  nodeList: {
+    gap: 9,
+    paddingBottom: 10,
+  },
+
+  nodeOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.panel,
+  },
+
+  nodeOptionIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: COLORS.iconBg,
+  },
+
+  nodeOptionIconText: {
+    color: COLORS.accent,
+    fontSize: 17,
+    fontWeight: "800",
+  },
+
+  nodeOptionTitle: {
+    color: COLORS.text,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+
+  nodeOptionDescription: {
+    color: COLORS.muted,
+    fontSize: 10,
+    lineHeight: 15,
+    marginTop: 4,
+  },
+
+  nodeOptionArrow: {
+    color: COLORS.muted,
+    fontSize: 20,
+    marginLeft: "auto",
+  },
+
+  settingsPage: {
+    flex: 1,
+    padding: 18,
+    backgroundColor: COLORS.background,
+  },
+
+  settingsTitle: {
+    color: COLORS.text,
+    fontSize: 22,
+    fontWeight: "800",
+    marginBottom: 8,
+  },
+
+  settingsDescription: {
+    color: COLORS.muted,
+    fontSize: 12,
+    lineHeight: 18,
+    marginBottom: 20,
+  },
+
+  settingsCard: {
+    padding: 15,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.panel,
+    marginBottom: 10,
+  },
+
+  settingsLabel: {
+    color: COLORS.muted,
+    fontSize: 11,
+    marginBottom: 7,
+  },
+
+  settingsValue: {
+    color: COLORS.text,
+    fontSize: 14,
+    fontWeight: "700",
+  },
+});
