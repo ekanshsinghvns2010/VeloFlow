@@ -227,14 +227,31 @@ export default function WorkflowEditorScreen({
     setConnectingFrom(null);
   }
 
-  function saveWorkflow() {
-    onSave?.(workflow);
+  async function saveWorkflow() {
+  if (!onSave) {
+    Alert.alert(
+      "Save unavailable",
+      "No save handler is connected to this editor.",
+    );
+    return;
+  }
+
+  try {
+    await onSave(workflow);
 
     Alert.alert(
-      "Workflow ready",
-      "The workflow data is ready to be saved through your API.",
+      "Workflow saved",
+      "Your workflow was successfully saved to VeloFlow.",
+    );
+  } catch (error) {
+    Alert.alert(
+      "Save failed",
+      error instanceof Error
+        ? error.message
+        : "VeloFlow could not save this workflow. Check your connection and try again.",
     );
   }
+}
 
   function getNodeColor(type: WorkflowNodeKind) {
     return (
