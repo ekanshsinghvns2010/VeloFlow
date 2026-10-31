@@ -5,7 +5,7 @@ import {
   type WorkflowDefinition,
   type WorkflowNode,
   type WorkflowNodeKind,
-} from "./index.js";
+} from "./index";
 
 export function createEmptyWorkflow(
   name = "Untitled workflow",
