@@ -109,7 +109,7 @@ const NODE_HEIGHT = 88;
 
 type Props = {
   initialWorkflow?: WorkflowDefinition;
-  onSave?: (workflow: WorkflowDefinition) => void;
+  onSave?: (workflow: WorkflowDefinition) => void | Promise<void>;
   onBack?: () => void;
 };
 
