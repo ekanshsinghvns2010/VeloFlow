@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -12,6 +11,10 @@ import {
   TextInput,
   View,
 } from "react-native";
+
+import WorkflowEditorScreen from "./WorkflowEditorScreen";
+
+import type { WorkflowDefinition } from "../../packages/shared/src";
 
 const C = {
   bg: "#0b1020",
@@ -36,9 +39,7 @@ type Workflow = {
   description?: string;
   status: string;
   version?: number;
-  definition?: {
-    nodes?: unknown[];
-  };
+  definition?: WorkflowDefinition;
 };
 
 export default function App() {
@@ -49,15 +50,23 @@ export default function App() {
   const [name, setName] = useState("");
   const [register, setRegister] = useState(false);
   const [token, setToken] = useState("");
+
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [workspaceId, setWorkspaceId] = useState("");
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
+
   const [tab, setTab] = useState<"home" | "settings">("home");
   const [newName, setNewName] = useState("");
   const [newDescription, setNewDescription] = useState("");
   const [showCreate, setShowCreate] = useState(false);
+
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
+
+  const [editingWorkflow, setEditingWorkflow] =
+    useState<Workflow | null>(null);
+
+  const [editorLoading, setEditorLoading] = useState(false);
 
   async function api(
     path: string,
@@ -111,7 +120,6 @@ export default function App() {
       return;
     }
 
-
     const chosen =
       items.find((item) => item.id === workspaceId) ??
       items[0];
@@ -119,12 +127,13 @@ export default function App() {
     if (!chosen) {
       setWorkspaceId("");
       setWorkflows([]);
-      setNotice("No usable workspace was returned by the server.");
+      setNotice(
+        "No usable workspace was returned by the server.",
+      );
       return;
     }
 
     setWorkspaceId(chosen.id);
-
 
     const response = await api(
       `/api/${encodeURIComponent(chosen.id)}/workflows?limit=100`,
@@ -140,6 +149,7 @@ export default function App() {
     loadWorkspaces().catch((error: Error) => {
       setNotice(error.message);
     });
+
     // Reload when the authenticated session or server changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, apiUrl]);
@@ -188,11 +198,14 @@ export default function App() {
 
   async function refresh() {
     setBusy(true);
+
     try {
       await loadWorkspaces();
     } catch (error) {
       setNotice(
-        error instanceof Error ? error.message : "Refresh failed.",
+        error instanceof Error
+          ? error.message
+          : "Refresh failed.",
       );
     } finally {
       setBusy(false);
@@ -228,8 +241,11 @@ export default function App() {
 
       setWorkflows((previous) => [
         result.data,
-        ...previous.filter((item) => item.id !== result.data.id),
+        ...previous.filter(
+          (item) => item.id !== result.data.id,
+        ),
       ]);
+
       setNewName("");
       setNewDescription("");
       setShowCreate(false);
@@ -237,57 +253,133 @@ export default function App() {
     } catch (error) {
       Alert.alert(
         "Could not create workflow",
-        error instanceof Error ? error.message : "Unknown error",
+        error instanceof Error
+          ? error.message
+          : "Unknown error",
       );
     } finally {
       setBusy(false);
     }
   }
+  async function openWorkflow(workflow: Workflow) {
+    if (!workspaceId) {
+      Alert.alert("No workspace", "Select a workspace first.");
+      return;
+    }
+
+    setEditorLoading(true);
+
+    try {
+      const result = await api(
+        `/api/${workspaceId}/workflows/${workflow.id}`,
+        {
+          method: "GET",
+        }
+      );
+
+      if (!result.data?.id || !result.data?.definition) {
+        throw new Error("The workflow data is incomplete.");
+      }
+
+      setEditingWorkflow(result.data as Workflow);
+    } catch (error) {
+      Alert.alert(
+        "Could not open workflow",
+        error instanceof Error ? error.message : "Please try again."
+      );
+    } finally {
+      setEditorLoading(false);
+    }
+  }
+
+  async function saveEditedWorkflow(
+    definition: WorkflowDefinition
+  ) {
+    if (!workspaceId || !editingWorkflow) {
+      throw new Error("No workflow is selected.");
+    }
+
+    const result = await api(
+      `/api/${workspaceId}/workflows/${editingWorkflow.id}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          name: editingWorkflow.name,
+          description: editingWorkflow.description ?? "",
+          definition,
+        }),
+      }
+    );
+
+    if (!result.data?.id) {
+      throw new Error("The server did not return the saved workflow.");
+    }
+
+    const savedWorkflow = result.data as Workflow;
+
+    setWorkflows((current) =>
+      current.map((workflow) =>
+        workflow.id === savedWorkflow.id
+          ? savedWorkflow
+          : workflow
+      )
+    );
+
+    setEditingWorkflow(savedWorkflow);
+  }
 
   async function toggleWorkflow(workflow: Workflow) {
-    const activating = workflow.status !== "ACTIVE";
+    if (!workspaceId) {
+      Alert.alert("No workspace", "Select a workspace first.");
+      return;
+    }
 
-    if (
-      activating &&
-      !(workflow.definition?.nodes?.length)
-    ) {
+    const isActive = workflow.status === "active";
+
+    if (!isActive && !workflow.definition?.nodes?.length) {
       Alert.alert(
-        "Workflow has no nodes",
-        "Add and configure workflow nodes before activating it.",
+        "Workflow is empty",
+        "Add at least one node before activating this workflow."
       );
       return;
     }
 
     setBusy(true);
+    setNotice("");
 
     try {
-      const action = activating ? "activate" : "deactivate";
+      const action = isActive ? "deactivate" : "activate";
 
       const result = await api(
-        `/api/${encodeURIComponent(workspaceId)}/workflows/${encodeURIComponent(workflow.id)}/${action}`,
-        "POST",
-        {},
+        `/api/${workspaceId}/workflows/${workflow.id}/${action}`,
+        {
+          method: "POST",
+        }
       );
 
-      if (result?.data) {
-        setWorkflows((previous) =>
-          previous.map((item) =>
-            item.id === workflow.id
-              ? { ...item, ...result.data }
-              : item,
-          ),
-        );
-      } else {
-        await refresh();
+      if (!result.data?.id) {
+        throw new Error("The server did not return the updated workflow.");
       }
 
+      const updatedWorkflow = result.data as Workflow;
+
+      setWorkflows((current) =>
+        current.map((item) =>
+          item.id === updatedWorkflow.id
+            ? updatedWorkflow
+            : item
+        )
+      );
+
       setNotice(
-        activating ? "Workflow activated." : "Workflow deactivated.",
+        isActive
+          ? "Workflow deactivated."
+          : "Workflow activated."
       );
     } catch (error) {
       Alert.alert(
-        "Unable to change workflow status",
-        error instanceof Error ? error.message : "Unknown error",
+        "Workflow update failed",
+        error instanceof Error ? error.message : "Please try again."
       );
     } finally {
       setBusy(false);
@@ -300,23 +392,34 @@ export default function App() {
     setWorkflows([]);
     setWorkspaceId("");
     setPassword("");
-    setNotice("Signed out.");
+    setNotice("");
+    setEditingWorkflow(null);
+    setEditorLoading(false);
   }
-
   return (
     <SafeAreaView style={s.safe}>
       <StatusBar barStyle="light-content" backgroundColor={C.bg} />
 
-      {!token ? (
+      {editingWorkflow ? (
+        <WorkflowEditorScreen
+          key={editingWorkflow.id}
+          initialWorkflow={editingWorkflow.definition as WorkflowDefinition}
+          onSave={saveEditedWorkflow}
+          onBack={() => setEditingWorkflow(null)}
+        />
+      ) : editorLoading ? (
+        <View style={s.loading}>
+          <ActivityIndicator color={C.green} size="large" />
+          <Text style={s.muted}>Loading workflow…</Text>
+        </View>
+      ) : !token ? (
         <ScrollView contentContainerStyle={s.authPage}>
           <View style={s.logo}>
             <Text style={s.logoText}>V</Text>
           </View>
 
           <Text style={s.brand}>VeloFlow</Text>
-          <Text style={s.muted}>
-            Connect. Automate. Simplify.
-          </Text>
+          <Text style={s.muted}>Connect. Automate. Simplify.</Text>
 
           <View style={s.card}>
             <Text style={s.title}>
@@ -476,22 +579,17 @@ export default function App() {
                 </Text>
 
                 <View style={s.metrics}>
-                  <Metric
-                    label="Total"
-                    value={workflows.length}
-                  />
+                  <Metric label="Total" value={workflows.length} />
                   <Metric
                     label="Active"
                     value={
-                      workflows.filter((w) => w.status === "ACTIVE")
-                        .length
+                      workflows.filter((w) => w.status === "ACTIVE").length
                     }
                   />
                   <Metric
                     label="Drafts"
                     value={
-                      workflows.filter((w) => w.status === "DRAFT")
-                        .length
+                      workflows.filter((w) => w.status === "DRAFT").length
                     }
                   />
                 </View>
@@ -551,22 +649,25 @@ export default function App() {
 
                 {workflows.map((workflow) => (
                   <View key={workflow.id} style={s.card}>
-                    <Text style={s.workflowName}>
-                      {workflow.name}
-                    </Text>
+                    <Text style={s.workflowName}>{workflow.name}</Text>
 
                     <Text style={s.muted}>
                       {workflow.description || "No description"}
                     </Text>
 
-                    <Text style={s.status}>
-                      {workflow.status}
-                    </Text>
+                    <Text style={s.status}>{workflow.status}</Text>
 
                     <Text style={s.small}>
                       Version {workflow.version ?? 1} ·{" "}
                       {workflow.definition?.nodes?.length ?? 0} nodes
                     </Text>
+
+                    <Action
+                      title="Edit workflow"
+                      secondary
+                      disabled={busy}
+                      onPress={() => openWorkflow(workflow)}
+                    />
 
                     <Action
                       title={
@@ -670,6 +771,12 @@ function Metric({
 
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: C.bg },
+  loading: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+  },
   authPage: { padding: 22, paddingTop: 40, paddingBottom: 40 },
   logo: {
     width: 62,
