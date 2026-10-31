@@ -355,9 +355,11 @@ export default function WorkflowEditorScreen({
         <View style={{ flex: 1 }} />
 
         <Pressable
-          style={styles.saveButton}
-          onPress={saveWorkflow}
-        >
+  style={styles.saveButton}
+  onPress={() => {
+    void saveWorkflow();
+  }}
+>
           <Text style={styles.saveButtonText}>Save</Text>
         </Pressable>
       </View>
