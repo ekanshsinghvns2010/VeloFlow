@@ -31,12 +31,22 @@ const COLORS = {
   border: "#252D3A",
   text: "#F4F7FB",
   muted: "#8994A6",
+
   purple: "#8B5CF6",
   purpleLight: "#A78BFA",
   green: "#34D399",
   blue: "#60A5FA",
   orange: "#FBBF24",
   red: "#FB7185",
+
+  // Additional colors referenced by the editor styles
+  warning: "#FBBF24",
+  accent: "#8B5CF6",
+  canvas: "#0C1017",
+  iconBg: "#1B2230",
+  success: "#34D399",
+  dangerBg: "#3A1C27",
+  danger: "#FB7185",
 };
 
 const NODE_TYPES: {
