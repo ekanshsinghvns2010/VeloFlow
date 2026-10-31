@@ -389,3 +389,525 @@ export default function App() {
     setEditingWorkflow(null);
     setEditorLoading(false);
   }
+  return (
+    <SafeAreaView style={s.safe}>
+      <StatusBar barStyle="light-content" backgroundColor={C.bg} />
+
+      {editingWorkflow ? (
+        <WorkflowEditorScreen
+          key={editingWorkflow.id}
+          initialWorkflow={
+            editingWorkflow.definition as WorkflowDefinition
+          }
+          onSave={saveEditedWorkflow}
+          onBack={() => setEditingWorkflow(null)}
+        />
+      ) : editorLoading ? (
+        <View style={s.loading}>
+          <ActivityIndicator size="large" color={C.purple} />
+          <Text style={s.muted}>Loading workflow…</Text>
+        </View>
+      ) : !token ? (
+        <ScrollView
+          contentContainerStyle={s.authPage}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={s.logo}>
+            <Text style={s.logoText}>V</Text>
+          </View>
+
+          <Text style={s.brand}>VeloFlow</Text>
+          <Text style={s.muted}>
+            Build, manage, and automate your workflows.
+          </Text>
+
+          <View style={s.card}>
+            <Text style={s.title}>
+              {registering ? "Create your account" : "Welcome back"}
+            </Text>
+
+            {registering && (
+              <Field
+                label="Name"
+                value={name}
+                onChangeText={setName}
+                placeholder="Your name"
+              />
+            )}
+
+            <Field
+              label="Email"
+              value={email}
+              onChangeText={setEmail}
+              placeholder="you@example.com"
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+
+            <Field
+              label="Password"
+              value={password}
+              onChangeText={setPassword}
+              placeholder="Your password"
+              secureTextEntry
+            />
+
+            <Action
+              title={
+                busy
+                  ? "Please wait…"
+                  : registering
+                    ? "Create account"
+                    : "Sign in"
+              }
+              disabled={busy}
+              onPress={authenticate}
+            />
+
+            <Pressable
+              onPress={() => setRegistering((value) => !value)}
+              style={{ marginTop: 16 }}
+            >
+              <Text style={{ color: C.purple, textAlign: "center" }}>
+                {registering
+                  ? "Already have an account? Sign in"
+                  : "New to VeloFlow? Create an account"}
+              </Text>
+            </Pressable>
+          </View>
+
+          <View style={s.card}>
+            <Text style={s.title}>API connection</Text>
+            <Field
+              label="Backend URL"
+              value={apiUrl}
+              onChangeText={setApiUrl}
+              placeholder="https://your-backend.example"
+              autoCapitalize="none"
+            />
+            <Action
+              title="Save API URL"
+              secondary
+              onPress={saveApiUrl}
+            />
+          </View>
+
+          {!!notice && <Text style={s.notice}>{notice}</Text>}
+        </ScrollView>
+      ) : (
+        <>
+          <View style={s.header}>
+            <View style={s.logoSmall}>
+              <Text style={s.logoTextSmall}>V</Text>
+            </View>
+
+            <View style={{ flex: 1 }}>
+              <Text style={s.headerTitle}>VeloFlow</Text>
+              <Text style={s.small}>
+                {workspaces.find((item) => item.id === workspaceId)?.name ??
+                  "Workspace"}
+              </Text>
+            </View>
+
+            <Pressable style={s.refresh} onPress={refresh}>
+              <Text style={s.refreshText}>↻</Text>
+            </Pressable>
+          </View>
+
+          <View style={s.tabs}>
+            <Tab
+              title="Workflows"
+              active={tab === "workflows"}
+              onPress={() => setTab("workflows")}
+            />
+            <Tab
+              title="Settings"
+              active={tab === "settings"}
+              onPress={() => setTab("settings")}
+            />
+          </View>
+
+          <ScrollView
+            contentContainerStyle={s.page}
+            keyboardShouldPersistTaps="handled"
+          >
+            {tab === "settings" ? (
+              <View>
+                <Text style={s.eyebrow}>PREFERENCES</Text>
+                <Text style={s.pageTitle}>Settings</Text>
+
+                <View style={s.card}>
+                  <Text style={s.title}>Backend connection</Text>
+                  <Field
+                    label="API URL"
+                    value={apiUrl}
+                    onChangeText={setApiUrl}
+                    placeholder="https://your-backend.example"
+                    autoCapitalize="none"
+                  />
+                  <Action
+                    title="Update API URL"
+                    secondary
+                    onPress={saveApiUrl}
+                  />
+                </View>
+
+                <Action
+                  title="Sign out"
+                  secondary
+                  onPress={signOut}
+                />
+              </View>
+            ) : (
+              <>
+                <Text style={s.eyebrow}>WORKSPACE</Text>
+                <Text style={s.pageTitle}>Your workflows</Text>
+                <Text style={s.muted}>
+                  Create and manage your automation workflows.
+                </Text>
+
+                <View style={s.metrics}>
+                  <Metric label="Total" value={workflows.length} />
+                  <Metric
+                    label="Active"
+                    value={
+                      workflows.filter(
+                        (item) => item.status === "ACTIVE"
+                      ).length
+                    }
+                  />
+                  <Metric
+                    label="Drafts"
+                    value={
+                      workflows.filter(
+                        (item) => item.status !== "ACTIVE"
+                      ).length
+                    }
+                  />
+                </View>
+
+                <View style={s.card}>
+                  <Text style={s.title}>Create workflow</Text>
+
+                  <Field
+                    label="Workflow name"
+                    value={newWorkflowName}
+                    onChangeText={setNewWorkflowName}
+                    placeholder="e.g. Welcome email"
+                  />
+
+                  <Field
+                    label="Description"
+                    value={newWorkflowDescription}
+                    onChangeText={setNewWorkflowDescription}
+                    placeholder="What should this workflow do?"
+                  />
+
+                  <Action
+                    title={busy ? "Creating…" : "＋ Create workflow"}
+                    disabled={busy}
+                    onPress={createWorkflow}
+                  />
+                </View>
+
+                {loading ? (
+                  <View style={s.loading}>
+                    <ActivityIndicator
+                      size="large"
+                      color={C.purple}
+                    />
+                    <Text style={s.muted}>
+                      Loading workflows…
+                    </Text>
+                  </View>
+                ) : workflows.length === 0 ? (
+                  <View style={s.card}>
+                    <Text style={s.title}>No workflows yet</Text>
+                    <Text style={s.muted}>
+                      Create your first workflow above.
+                    </Text>
+                  </View>
+                ) : (
+                  workflows.map((workflow) => (
+                    <View key={workflow.id} style={s.card}>
+                      <Text style={s.workflowName}>
+                        {workflow.name}
+                      </Text>
+
+                      {!!workflow.description && (
+                        <Text style={s.muted}>
+                          {workflow.description}
+                        </Text>
+                      )}
+
+                      <Text style={s.status}>
+                        {workflow.status === "ACTIVE"
+                          ? "● ACTIVE"
+                          : "● DRAFT"}
+                      </Text>
+
+                      <Text style={s.small}>
+                        Version {workflow.version ?? 1} ·{" "}
+                        {workflow.definition?.nodes?.length ?? 0} nodes
+                      </Text>
+
+                      <Action
+                        title="Edit workflow"
+                        secondary
+                        onPress={() => openWorkflow(workflow)}
+                      />
+
+                      <Action
+                        title={
+                          workflow.status === "ACTIVE"
+                            ? "Deactivate"
+                            : "Activate"
+                        }
+                        disabled={busy}
+                        onPress={() => toggleWorkflow(workflow)}
+                      />
+                    </View>
+                  ))
+                )}
+              </>
+            )}
+
+            {!!notice && <Text style={s.notice}>{notice}</Text>}
+          </ScrollView>
+        </>
+      )}
+    </SafeAreaView>
+  );
+}
+
+function Field({
+  label,
+  value,
+  onChangeText,
+  placeholder,
+  secureTextEntry,
+  keyboardType,
+  autoCapitalize,
+}: {
+  label: string;
+  value: string;
+  onChangeText: (value: string) => void;
+  placeholder?: string;
+  secureTextEntry?: boolean;
+  keyboardType?: "default" | "email-address";
+  autoCapitalize?: "none" | "sentences" | "words" | "characters";
+}) {
+  return (
+    <View style={s.field}>
+      <Text style={s.label}>{label}</Text>
+      <TextInput
+        style={s.input}
+        value={value}
+        onChangeText={onChangeText}
+        placeholder={placeholder}
+        placeholderTextColor={C.muted}
+        secureTextEntry={secureTextEntry}
+        keyboardType={keyboardType}
+        autoCapitalize={autoCapitalize}
+      />
+    </View>
+  );
+}
+
+function Action({
+  title,
+  onPress,
+  secondary,
+  disabled,
+}: {
+  title: string;
+  onPress: () => void;
+  secondary?: boolean;
+  disabled?: boolean;
+}) {
+  return (
+    <Pressable
+      style={[
+        s.action,
+        secondary && s.actionSecondary,
+        disabled && { opacity: 0.5 },
+      ]}
+      onPress={onPress}
+      disabled={disabled}
+    >
+      <Text style={s.actionText}>{title}</Text>
+    </Pressable>
+  );
+}
+
+function Tab({
+  title,
+  active,
+  onPress,
+}: {
+  title: string;
+  active: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={[s.tab, active && s.tabActive]}
+    >
+      <Text
+        style={{
+          color: active ? C.text : C.muted,
+          fontWeight: active ? "800" : "600",
+        }}
+      >
+        {title}
+      </Text>
+    </Pressable>
+  );
+}
+
+function Metric({
+  label,
+  value,
+}: {
+  label: string;
+  value: number;
+}) {
+  return (
+    <View style={s.metric}>
+      <Text style={s.metricValue}>{value}</Text>
+      <Text style={s.small}>{label}</Text>
+    </View>
+  );
+}
+
+const s = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: C.bg },
+  loading: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+  },
+  authPage: {
+    padding: 22,
+    paddingTop: 40,
+    paddingBottom: 40,
+  },
+  logo: {
+    width: 62,
+    height: 62,
+    borderRadius: 18,
+    backgroundColor: C.purple,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
+  },
+  logoText: { color: "#fff", fontSize: 35, fontWeight: "900" },
+  brand: { color: C.text, fontSize: 34, fontWeight: "900" },
+  muted: {
+    color: C.muted,
+    fontSize: 14,
+    lineHeight: 21,
+    marginTop: 6,
+  },
+  small: { color: C.muted, fontSize: 12, marginTop: 8 },
+  card: {
+    backgroundColor: C.panel,
+    borderColor: C.border,
+    borderWidth: 1,
+    borderRadius: 18,
+    padding: 17,
+    marginTop: 16,
+  },
+  title: {
+    color: C.text,
+    fontSize: 20,
+    fontWeight: "800",
+    marginBottom: 5,
+  },
+  field: { marginTop: 15 },
+  label: { color: C.muted, fontSize: 13, marginBottom: 7 },
+  input: {
+    backgroundColor: C.input,
+    borderColor: C.border,
+    borderWidth: 1,
+    borderRadius: 11,
+    paddingHorizontal: 13,
+    paddingVertical: 12,
+    color: C.text,
+    fontSize: 15,
+  },
+  action: {
+    backgroundColor: C.purple,
+    borderRadius: 11,
+    padding: 14,
+    alignItems: "center",
+    marginTop: 13,
+  },
+  actionSecondary: {
+    backgroundColor: "#202a43",
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  actionText: { color: "#fff", fontSize: 14, fontWeight: "800" },
+  notice: { color: C.green, marginTop: 15, lineHeight: 20 },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: C.border,
+    gap: 12,
+  },
+  logoSmall: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: C.purple,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  logoTextSmall: { color: "#fff", fontSize: 24, fontWeight: "900" },
+  headerTitle: { color: C.text, fontSize: 19, fontWeight: "900" },
+  refresh: {
+    backgroundColor: C.panel,
+    borderRadius: 10,
+    paddingHorizontal: 13,
+    paddingVertical: 8,
+  },
+  refreshText: { color: C.text, fontSize: 22 },
+  tabs: { flexDirection: "row", gap: 8, padding: 14 },
+  tab: { padding: 11, borderRadius: 9 },
+  tabActive: { backgroundColor: "#25264a" },
+  page: { padding: 17, paddingBottom: 45 },
+  eyebrow: {
+    color: C.green,
+    fontSize: 11,
+    fontWeight: "900",
+    letterSpacing: 1.4,
+  },
+  pageTitle: {
+    color: C.text,
+    fontSize: 29,
+    fontWeight: "900",
+    marginTop: 8,
+  },
+  metrics: { flexDirection: "row", gap: 9, marginVertical: 17 },
+  metric: {
+    flex: 1,
+    backgroundColor: C.panel,
+    borderColor: C.border,
+    borderWidth: 1,
+    borderRadius: 13,
+    padding: 12,
+  },
+  metricValue: { color: C.text, fontSize: 24, fontWeight: "900" },
+  workflowName: { color: C.text, fontSize: 18, fontWeight: "800" },
+  status: {
+    color: C.green,
+    marginTop: 12,
+    fontSize: 12,
+    fontWeight: "800",
+  },
+});
